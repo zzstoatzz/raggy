@@ -44,13 +44,13 @@ async def run_loader(loader: Loader) -> list[Document]:
     return await loader.load()
 
 
-@flow(name="Update Marvin's Knowledge", log_prints=True)
+@flow(name="Update Knowledge", log_prints=True)
 async def update_marvin_knowledge(
-    collection_name: str = "marvin",
+    collection_name: str = "default",
     chroma_client_type: str = "base",
     mode: Literal["upsert", "reset"] = "upsert",
 ):
-    """Flow updating Marvin's knowledge with info from the Prefect community."""
+    """Flow updating vectorstore with info from the Prefect community."""
     with patch(
         "raggy.loaders.web.html_to_content",
         partial(html_to_content, html_parsing_fn=html_parser),
@@ -82,6 +82,6 @@ if __name__ == "__main__":
 
     asyncio.run(
         update_marvin_knowledge(
-            collection_name="marvin", chroma_client_type="base", mode="reset"
+            collection_name="testing", chroma_client_type="base", mode="reset"
         )
     )
