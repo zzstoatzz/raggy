@@ -173,8 +173,8 @@ local_examples/
 # Chroma
 .chroma/
 
-# Marvin
-src/marvin/_version.py
+# versioning
+src/raggy/_version.py
 
 # Prefect
 .prefect/
