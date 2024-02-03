@@ -46,6 +46,7 @@ def patch_html_parser(html_parser: Callable[[str], str]) -> None:
     ):
         yield
 
+
 def distinct(
     iterable: Iterable[T],
     key: Callable[[T], Any] = (lambda i: i),
@@ -56,6 +57,7 @@ def distinct(
             continue
         seen.add(key(item))
         yield item
+
 
 def batched(
     iterable: Iterable[T], size: int, size_fn: Callable[[Any], int] = None
@@ -215,6 +217,7 @@ async def create_openai_embeddings(
         return embedding.data[0].embedding
 
     return [data.embedding for data in embedding.data]
+
 
 def tokenize(text: str, model: str = None) -> list[int]:
     """

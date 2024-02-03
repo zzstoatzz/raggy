@@ -1,4 +1,3 @@
-
 import re
 from typing import Iterable, Literal
 
@@ -26,6 +25,7 @@ def get_client(client_type: Literal["base", "http"]) -> HttpClient:
         return HttpClient()
     else:
         raise ValueError(f"Unknown client type: {client_type}")
+
 
 class Chroma(BaseModel):
     """A wrapper for chromadb.Client - used as an async context manager"""
@@ -65,7 +65,9 @@ class Chroma(BaseModel):
                 document.metadata.model_dump(exclude_none=True) or None
                 for document in documents
             ],
-            embeddings=await create_openai_embeddings([document.text for document in documents]),
+            embeddings=await create_openai_embeddings(
+                [document.text for document in documents]
+            ),
         )
 
         await run_async(self.collection.add, **kwargs)
@@ -107,7 +109,9 @@ class Chroma(BaseModel):
                 document.metadata.model_dump(exclude_none=True) or None
                 for document in documents
             ],
-            embeddings=await create_openai_embeddings([document.text for document in documents]),
+            embeddings=await create_openai_embeddings(
+                [document.text for document in documents]
+            ),
         )
         await run_async(self.collection.upsert, **kwargs)
 

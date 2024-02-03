@@ -9,4 +9,5 @@ class Settings(BaseSettings):
         validate_assignment=True,
     )
 
+
 settings = Settings()

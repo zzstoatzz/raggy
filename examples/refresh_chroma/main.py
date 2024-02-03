@@ -81,5 +81,7 @@ if __name__ == "__main__":
     import asyncio
 
     asyncio.run(
-        update_marvin_knowledge(collection_name="marvin", chroma_client_type="base", mode="reset")
+        update_marvin_knowledge(
+            collection_name="marvin", chroma_client_type="base", mode="reset"
+        )
     )

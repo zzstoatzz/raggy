@@ -237,9 +237,7 @@ class GitHubRepoLoader(Loader):
     async def load(self) -> list[Document]:
         """Load files from GitHub that match the glob pattern."""
         async with OPEN_FILE_CONCURRENCY:
-            async with aiofiles.tempfile.TemporaryDirectory(
-                suffix="_raggy"
-            ) as tmp_dir:
+            async with aiofiles.tempfile.TemporaryDirectory(suffix="_raggy") as tmp_dir:
                 process = await asyncio.create_subprocess_exec(
                     *["git", "clone", "--depth", "1", self.repo, tmp_dir],
                     stdout=asyncio.subprocess.PIPE,
