@@ -1,4 +1,3 @@
-import asyncio
 import itertools
 import re
 import uuid
@@ -9,6 +8,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Generator,
     Iterable,
     List,
     Optional,
@@ -18,17 +18,17 @@ from typing import (
 )
 from unittest.mock import patch
 
+import marvin
+import tiktoken
 import xxhash
-from openai.types import CreateEmbeddingResponse
-from prefect.utilities.collections import distinct
-
 from marvin.utilities.asyncio import run_sync_if_awaitable
 from marvin.utilities.logging import get_logger
+from openai.types import CreateEmbeddingResponse
 
 T = TypeVar("T")
 
 if TYPE_CHECKING:
-    from marvin._rag.documents import Document
+    from raggy.documents import Document
 
 
 def generate_prefixed_uuid(prefix: str) -> str:
@@ -42,11 +42,21 @@ def generate_prefixed_uuid(prefix: str) -> str:
 def patch_html_parser(html_parser: Callable[[str], str]) -> None:
     """Patch the html_to_content function to use the given html_parser."""
     with patch(
-        "marvin._rag.utils.html_to_content",
+        "raggy.utils.html_to_content",
         partial(html_to_content, html_parsing_fn=html_parser),
     ):
         yield
 
+def distinct(
+    iterable: Iterable[T],
+    key: Callable[[T], Any] = (lambda i: i),
+) -> Generator[T, None, None]:
+    seen: Set = set()
+    for item in iterable:
+        if key(item) in seen:
+            continue
+        seen.add(key(item))
+        yield item
 
 def batched(
     iterable: Iterable[T], size: int, size_fn: Callable[[Any], int] = None
@@ -146,7 +156,7 @@ def extract_keywords(text: str) -> list[str]:
     except ImportError:
         raise ImportError(
             "yake is required for keyword extraction. Please install it with"
-            " `pip install `marvin[rag]` or `pip install yake`."
+            " `pip install `raggy[rag]` or `pip install yake`."
         )
 
     kw = yake.KeywordExtractor(
@@ -207,28 +217,99 @@ async def create_openai_embeddings(
 
     return [data.embedding for data in embedding.data]
 
+def tokenize(text: str, model: str = None) -> list[int]:
+    """
+    Tokenizes the given text using the specified model.
 
-async def fetch_documents_from_gcs(
-    document_ids: tuple[str],
-    block_name: str = "marvin-tpuf-document-storage",
-    base_path: str = "marvin/serialized/test",
-) -> list["Document"]:
-    """Fetch a document from GCS."""
-    import cloudpickle
+    Args:
+        text (str): The text to tokenize.
+        model (str, optional): The model to use for tokenization. If not provided,
+                               the default model is used.
 
-    try:
-        from prefect_gcp import GcsBucket
-    except ImportError:
-        raise ImportError(
-            "The prefect_gcp package is required to fetch documents from GCS. Please"
-            " install it with `pip install prefect_gcp`."
-        )
+    Returns:
+        list[int]: The tokenized text as a list of integers.
+    """
+    if model is None:
+        model = marvin.settings.openai.chat.completions.model
+    tokenizer = tiktoken.encoding_for_model(model)
+    return tokenizer.encode(text)
 
-    bucket = await GcsBucket.load(block_name)
-    encoded_documents = await asyncio.gather(
-        *[
-            bucket.read_path(f"{base_path}/{document_id}.pkl")
-            for document_id in document_ids
-        ]
-    )
-    return [cloudpickle.loads(doc) for doc in encoded_documents]
+
+def detokenize(tokens: list[int], model: str = None) -> str:
+    """
+    Detokenizes the given tokens using the specified model.
+
+    Args:
+        tokens (list[int]): The tokens to detokenize.
+        model (str, optional): The model to use for detokenization. If not provided,
+                               the default model is used.
+
+    Returns:
+        str: The detokenized text.
+    """
+    if model is None:
+        model = marvin.settings.openai.chat.completions.model
+    tokenizer = tiktoken.encoding_for_model(model)
+    return tokenizer.decode(tokens)
+
+
+def count_tokens(text: str, model: str = None) -> int:
+    """
+    Counts the number of tokens in the given text using the specified model.
+
+    Args:
+        text (str): The text to count tokens in.
+        model (str, optional): The model to use for token counting. If not provided,
+                               the default model is used.
+
+    Returns:
+        int: The number of tokens in the text.
+    """
+    return len(tokenize(text, model=model))
+
+
+def slice_tokens(text: str, n_tokens: int) -> str:
+    tokens = tokenize(text)
+    return detokenize(tokens[:n_tokens])
+
+
+def split_text(
+    text: str,
+    chunk_size: int,
+    chunk_overlap: float = None,
+    last_chunk_threshold: float = None,
+    return_index: bool = False,
+) -> Union[str, tuple[str, int]]:
+    """
+    Split a text into a list of strings. Chunks are split by tokens.
+
+    Args:
+        text (str): The text to split.
+        chunk_size (int): The number of tokens in each chunk.
+        chunk_overlap (float): The fraction of overlap between chunks.
+        last_chunk_threshold (float): If the last chunk is less than this fraction of
+            the chunk_size, it will be added to the prior chunk
+        return_index (bool): If True, return a tuple of (chunk, index) where
+            index is the character index of the start of the chunk in the original text.
+    """
+    if chunk_overlap is None:
+        chunk_overlap = 0.1
+    if chunk_overlap < 0 or chunk_overlap > 1:
+        raise ValueError("chunk_overlap must be between 0 and 1")
+    if last_chunk_threshold is None:
+        last_chunk_threshold = 0.25
+
+    tokens = tokenize(text)
+
+    chunks = []
+    for i in range(0, len(tokens), chunk_size - int(chunk_overlap * chunk_size)):
+        chunks.append((tokens[i : i + chunk_size], len(detokenize(tokens[:i]))))
+
+    # if the last chunk is too small, merge it with the previous chunk
+    if len(chunks) > 1 and len(chunks[-1][0]) < chunk_size * last_chunk_threshold:
+        chunks[-2][0].extend(chunks.pop(-1)[0])
+
+    if return_index:
+        return [(detokenize(chunk), index) for chunk, index in chunks]
+    else:
+        return [detokenize(chunk) for chunk, _ in chunks]

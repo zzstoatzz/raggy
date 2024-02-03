@@ -10,11 +10,11 @@ try:
 except ModuleNotFoundError:
     raise ImportError(
         "The PDF loader requires the pypdf package. "
-        "Install it with `pip install 'marvin[loaders]'`."
+        "Install it with `pip install 'raggy[loaders]'`."
     )
 
-from marvin._rag.documents import Document, document_to_excerpts
-from marvin._rag.loaders.base import Loader
+from raggy.documents import Document, document_to_excerpts
+from raggy.loaders.base import Loader
 
 
 async def download_url_content(url: str) -> bytes:

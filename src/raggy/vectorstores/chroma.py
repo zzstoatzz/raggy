@@ -1,15 +1,21 @@
 import re
 from typing import Any, Iterable, Literal, Optional
 
-from chromadb.api.models.Collection import Collection
-from chromadb.api.types import Include, QueryResult
-from pydantic import BaseModel, Field, model_validator
-
-import marvin
-from marvin._rag.documents import Document
-from marvin._rag.utils import get_distinct_documents
+try:
+    from chromadb.api.models.Collection import Collection
+    from chromadb.api.types import Include, QueryResult
+except ImportError:
+    raise ImportError(
+        "You must have `chromadb` installed to use the Chroma vector store. "
+        "Install it with `pip install 'raggy[chroma]'`."
+    )
 from marvin.tools.chroma import OpenAIEmbeddingFunction, get_client
 from marvin.utilities.asyncio import run_async
+from pydantic import BaseModel, Field, model_validator
+
+import raggy
+from raggy.documents import Document
+from raggy.utils import get_distinct_documents
 
 
 class Chroma(BaseModel):
@@ -25,7 +31,7 @@ class Chroma(BaseModel):
     def validate_collection(self):
         if not self.collection:
             self.collection = get_client(self.client_type).get_or_create_collection(
-                name="marvin", embedding_function=self.embedding_fn
+                name="raggy", embedding_function=self.embedding_fn
             )
         return self
 
@@ -112,7 +118,7 @@ class Chroma(BaseModel):
         )
 
     def ok(self) -> bool:
-        logger = marvin.utilities.logging.get_logger()
+        logger = raggy.utilities.logging.get_logger()
         try:
             version = self.client.get_version()
         except Exception as e:

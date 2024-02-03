@@ -13,9 +13,9 @@ import chardet
 import httpx
 from pydantic import BaseModel, Field, field_validator
 
-from marvin._rag.documents import Document, document_to_excerpts
-from marvin._rag.loaders import Loader
-from marvin._rag.utils import multi_glob, rm_html_comments, rm_text_after
+from raggy.documents import Document, document_to_excerpts
+from raggy.loaders import Loader
+from raggy.utils import multi_glob, rm_html_comments, rm_text_after
 
 
 def get_open_file_limit() -> int:
@@ -238,7 +238,7 @@ class GitHubRepoLoader(Loader):
         """Load files from GitHub that match the glob pattern."""
         async with OPEN_FILE_CONCURRENCY:
             async with aiofiles.tempfile.TemporaryDirectory(
-                suffix="_marvin"
+                suffix="_raggy"
             ) as tmp_dir:
                 process = await asyncio.create_subprocess_exec(
                     *["git", "clone", "--depth", "1", self.repo, tmp_dir],

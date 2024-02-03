@@ -15,20 +15,20 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from turbopuffer.vectors import VectorResult
 
-from marvin._rag.documents import Document
-from marvin._rag.utils import create_openai_embeddings
+from raggy.documents import Document
+from raggy.utils import create_openai_embeddings
 
 
 class TurboPufferSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_prefix="MARVIN_TURBOPUFFER_",
-        env_file="" if os.getenv("MARVIN_TEST_MODE") else ("~/.marvin/.env", ".env"),
+        env_prefix="raggy_TURBOPUFFER_",
+        env_file="" if os.getenv("raggy_TEST_MODE") else ("~/.raggy/.env", ".env"),
         arbitrary_types_allowed=True,
     )
 
     api_key: SecretStr
-    namespace: str = "marvin"
-    fetch_document_fn: ImportString = "marvin._rag.utils.fetch_documents_from_gcs"
+    namespace: str = "raggy"
+    fetch_document_fn: ImportString = "raggy.utils.fetch_documents_from_gcs"
 
     @model_validator(mode="after")
     def set_api_key(self):

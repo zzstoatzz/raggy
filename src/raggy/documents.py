@@ -4,11 +4,11 @@ from functools import partial
 from typing import Annotated, Optional
 
 from jinja2 import Template
+from marvin.utilities.jinja import JinjaEnvironment
+from marvin.utilities.strings import count_tokens
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from marvin._rag.utils import extract_keywords, generate_prefixed_uuid, hash_text
-from marvin.utilities.jinja import JinjaEnvironment
-from marvin.utilities.strings import count_tokens, split_text
+from raggy.utils import extract_keywords, generate_prefixed_uuid, hash_text, split_text
 
 jinja_env = JinjaEnvironment(enable_async=True)
 

@@ -8,9 +8,9 @@ from fake_useragent import UserAgent
 from httpx import AsyncClient, Response
 from pydantic import Field
 
-from marvin._rag.documents import Document, document_to_excerpts
-from marvin._rag.loaders.base import Loader, MultiLoader
-from marvin._rag.utils import batched, html_to_content
+from raggy.documents import Document, document_to_excerpts
+from raggy.loaders.base import Loader, MultiLoader
+from raggy.utils import batched, html_to_content
 
 user_agent = UserAgent()
 

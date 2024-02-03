@@ -1,11 +1,11 @@
 import asyncio
 from abc import ABC, abstractmethod
 
+from marvin.utilities.logging import get_logger
 from pydantic import BaseModel, ConfigDict
 
-from marvin._rag.documents import Document
-from marvin._rag.utils import batched
-from marvin.utilities.logging import get_logger
+from raggy.documents import Document
+from raggy.utils import batched
 
 
 class Loader(BaseModel, ABC):
