@@ -1,7 +1,9 @@
+
 import re
-from typing import Any, Iterable, Literal, Optional
+from typing import Iterable, Literal
 
 try:
+    from chromadb import Client, HttpClient
     from chromadb.api.models.Collection import Collection
     from chromadb.api.types import Include, QueryResult
 except ImportError:
@@ -9,21 +11,27 @@ except ImportError:
         "You must have `chromadb` installed to use the Chroma vector store. "
         "Install it with `pip install 'raggy[chroma]'`."
     )
-from marvin.tools.chroma import OpenAIEmbeddingFunction, get_client
 from marvin.utilities.asyncio import run_async
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, model_validator
 
 import raggy
 from raggy.documents import Document
-from raggy.utils import get_distinct_documents
+from raggy.utils import create_openai_embeddings, get_distinct_documents
 
+
+def get_client(client_type: Literal["base", "http"]) -> HttpClient:
+    if client_type == "base":
+        return Client()
+    elif client_type == "http":
+        return HttpClient()
+    else:
+        raise ValueError(f"Unknown client type: {client_type}")
 
 class Chroma(BaseModel):
     """A wrapper for chromadb.Client - used as an async context manager"""
 
     client_type: Literal["base", "http"] = "base"
-    embedding_fn: Any = Field(default_factory=OpenAIEmbeddingFunction)
-    collection: Optional[Collection] = None
+    collection: Collection | None = None
 
     _in_context: bool = False
 
@@ -31,7 +39,7 @@ class Chroma(BaseModel):
     def validate_collection(self):
         if not self.collection:
             self.collection = get_client(self.client_type).get_or_create_collection(
-                name="raggy", embedding_function=self.embedding_fn
+                name="raggy"
             )
         return self
 
@@ -49,7 +57,7 @@ class Chroma(BaseModel):
         )
 
     async def add(self, documents: list[Document]) -> Iterable[Document]:
-        documents = get_distinct_documents(documents)
+        documents = list(get_distinct_documents(documents))
         kwargs = dict(
             ids=[document.id for document in documents],
             documents=[document.text for document in documents],
@@ -57,7 +65,7 @@ class Chroma(BaseModel):
                 document.metadata.model_dump(exclude_none=True) or None
                 for document in documents
             ],
-            embeddings=[document.embedding or [] for document in documents],
+            embeddings=await create_openai_embeddings([document.text for document in documents]),
         )
 
         await run_async(self.collection.add, **kwargs)
@@ -91,7 +99,7 @@ class Chroma(BaseModel):
         return await run_async(self.collection.count)
 
     async def upsert(self, documents: list[Document]):
-        documents = get_distinct_documents(documents)
+        documents = list(get_distinct_documents(documents))
         kwargs = dict(
             ids=[document.id for document in documents],
             documents=[document.text for document in documents],
@@ -99,7 +107,7 @@ class Chroma(BaseModel):
                 document.metadata.model_dump(exclude_none=True) or None
                 for document in documents
             ],
-            embeddings=[document.embedding or [] for document in documents],
+            embeddings=await create_openai_embeddings([document.text for document in documents]),
         )
         await run_async(self.collection.upsert, **kwargs)
 
@@ -114,7 +122,6 @@ class Chroma(BaseModel):
         self.collection = await run_async(
             client.create_collection,
             name=self.collection.name,
-            embedding_function=self.embedding_fn,
         )
 
     def ok(self) -> bool:

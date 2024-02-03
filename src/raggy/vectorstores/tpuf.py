@@ -1,6 +1,6 @@
 import asyncio
 import os
-from typing import Iterable, Optional, Union
+from typing import Iterable, Union
 
 import turbopuffer as tpuf
 from pydantic import (
@@ -50,10 +50,10 @@ class TurboPuffer(BaseModel):
 
     async def upsert(
         self,
-        documents: Optional[Iterable[Document]] = None,
-        ids: Optional[Union[list[str], list[int]]] = None,
-        vectors: Optional[list[list[float]]] = None,
-        attributes: Optional[dict] = None,
+        documents: Iterable[Document] | None = None,
+        ids: Union[list[str], list[int]] | None = None,
+        vectors: list[list[float]] | None = None,
+        attributes: dict | None = None,
     ):
         if documents is None and vectors is None:
             raise ValueError("Either `documents` or `vectors` must be provided.")
@@ -68,12 +68,12 @@ class TurboPuffer(BaseModel):
 
     async def query(
         self,
-        text: Optional[str] = None,
-        vector: Optional[list[float]] = None,
+        text: str | None = None,
+        vector: list[float] | None = None,
         top_k: int = 10,
         distance_metric: str = "cosine_distance",
-        filters: Optional[dict] = None,
-        include_attributes: Optional[list[str]] = None,
+        filters: dict | None = None,
+        include_attributes: list[str] | None = None,
         include_vectors: bool = False,
     ) -> VectorResult:
         if text:

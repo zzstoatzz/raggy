@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 from functools import partial
-from typing import Annotated, Optional
+from typing import Annotated
 
 from jinja2 import Template
 from marvin.utilities.jinja import JinjaEnvironment
@@ -33,10 +33,10 @@ class Document(BaseModel):
 
     id: str = Field(default_factory=partial(generate_prefixed_uuid, "doc"))
 
-    embedding: Optional[list[float]] = Field(default=None)
+    embedding: list[float] | None = Field(default=None)
     metadata: DocumentMetadata = Field(default_factory=DocumentMetadata)
 
-    tokens: Optional[int] = Field(default=None)
+    tokens: int | None = Field(default=None)
     keywords: list[str] = Field(default_factory=list)
 
     @property
@@ -71,7 +71,7 @@ EXCERPT_TEMPLATE = jinja_env.from_string(
 
 async def document_to_excerpts(
     document: Document,
-    excerpt_template: Optional[Template] = None,
+    excerpt_template: Template | None = None,
     chunk_tokens: int = 300,
     overlap: Annotated[float, Field(strict=True, ge=0, le=1)] = 0.1,
     **extra_template_kwargs,

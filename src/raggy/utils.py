@@ -11,7 +11,6 @@ from typing import (
     Generator,
     Iterable,
     List,
-    Optional,
     Set,
     TypeVar,
     Union,
@@ -132,7 +131,7 @@ def rm_text_after(text: str, substring: str) -> str:
 
 
 def html_to_content(
-    html: str, html_parsing_fn: Optional[Callable[[str], str]] = None
+    html: str, html_parsing_fn: Callable[[str], str] | None = None
 ) -> str:
     if html_parsing_fn is None:
         import bs4

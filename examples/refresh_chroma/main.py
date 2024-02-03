@@ -53,7 +53,7 @@ async def update_marvin_knowledge(
     """Flow updating Marvin's knowledge with info from the Prefect community."""
     with patch(
         "raggy.loaders.web.html_to_content",
-        partial(html_to_content, parsing_fn=html_parser),
+        partial(html_to_content, html_parsing_fn=html_parser),
     ):
         documents = [
             doc
@@ -81,5 +81,5 @@ if __name__ == "__main__":
     import asyncio
 
     asyncio.run(
-        update_marvin_knowledge(collection_name="marvin", chroma_client_type="base")
+        update_marvin_knowledge(collection_name="marvin", chroma_client_type="base", mode="reset")
     )

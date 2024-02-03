@@ -1,6 +1,6 @@
 import asyncio
 import re
-from typing import Optional, Union
+from typing import Union
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -66,7 +66,7 @@ class URLLoader(WebLoader):
                 final_documents.extend(await document_to_excerpts(d))
         return final_documents
 
-    async def load_url(self, url, client) -> Optional[Document]:
+    async def load_url(self, url, client) -> Document | None:
         async with URL_CONCURRENCY:
             response = await client.get(url, follow_redirects=True)
 
