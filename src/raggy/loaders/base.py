@@ -23,6 +23,30 @@ class Loader(BaseModel, ABC):
 
 
 class MultiLoader(Loader):
+    """A loader that loads from multiple loaders.
+
+    Attributes:
+        loaders: The loaders to load from.
+
+    Examples:
+        Basic Usage of `MultiLoader`
+        ```python
+        from raggy.loaders.base import MultiLoader
+        from raggy.loaders.github import GitHubRepoLoader
+
+        loader = MultiLoader(
+            loaders=[
+                GitHubRepoLoader(repo="prefecthq/prefect"),
+                GitHubRepoLoader(repo="prefecthq/marvin"),
+            ]
+        )
+
+        documents = await loader.load() # all (chunked) files from both repos
+        print(documents)
+        ```
+
+    """
+
     loaders: list[Loader]
 
     async def load(self, batch_size: int = 5) -> list[Document]:

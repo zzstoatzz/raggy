@@ -10,6 +10,10 @@ import raggy
 
 
 class RaggyLogger(logging.Logger):
+    """A subclass of the standard library `logging.Logger` class that adds methods for
+    logging with styles and key-value pairs.
+    """
+
     def __init__(self, name: str, level: int = logging.NOTSET) -> None:
         super().__init__(name, level)
 

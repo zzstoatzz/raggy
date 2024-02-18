@@ -15,7 +15,39 @@ async def create_openai_embeddings(
     timeout: int = 60,
     model: str = raggy.settings.openai_embeddings_model,
 ) -> list[float] | list[list[float]]:
-    """Create OpenAI embeddings for a list of texts."""
+    """Create OpenAI embeddings for a list of texts.
+
+    Args:
+        input_: The input text or list of texts to embed
+        timeout: The maximum time to wait for the request to complete
+        model: The model to use for the embeddings. Defaults to the value
+            of `raggy.settings.openai_embeddings_model`, which is "text-embedding-3-small"
+            by default
+
+    Returns:
+        The embeddings for the input text or list of texts
+
+    Raises:
+        TypeError: If input_ is not a str or a list of str
+
+    Examples:
+        Create an embedding for a single text:
+        ```python
+        from raggy.utilities.embeddings import create_openai_embeddings
+
+        embedding = await create_openai_embeddings("Hello, world!")
+        ```
+
+        Create embeddings for a list of texts:
+        ```python
+        from raggy.utilities.embeddings import create_openai_embeddings
+
+        embeddings = await create_openai_embeddings([
+            "Hello, world!",
+            "Goodbye, world!",
+        ])
+        ```
+    """
 
     if isinstance(input_, str):
         input_ = [input_]
