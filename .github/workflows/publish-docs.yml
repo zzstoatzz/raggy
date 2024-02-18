@@ -1,0 +1,34 @@
+name: Publish Docs
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+
+permissions:
+  contents: write
+jobs:
+  publish-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - uses: actions/cache@v4
+        with:
+          key: ${{ github.ref }}
+          path: .cache
+      - name: Install dependencies for MKDocs Material
+        run: pip install \
+          mkdocs-material \
+          mkdocs-autolinks-plugin \
+          mkdocs-awesome-pages-plugin \
+          mkdocstrings[python] \
+          mkdocs-markdownextradata-plugin \
+          pillow \
+          cairosvg
+
+      - name: Publish docs
+        run: mkdocs gh-deploy --force 
