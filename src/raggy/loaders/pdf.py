@@ -10,7 +10,7 @@ try:
 except ModuleNotFoundError:
     raise ImportError(
         "The PDF loader requires the pypdf package. "
-        "Install it with `pip install 'raggy[loaders]'`."
+        "Install it with `pip install 'raggy[pdf]'`."
     )
 
 from raggy.documents import Document, document_to_excerpts
@@ -49,7 +49,7 @@ class PDFLoader(Loader):
             return [
                 document
                 for i, page in enumerate(pdf_reader.pages)
-                for document in document_to_excerpts(
+                for document in await document_to_excerpts(
                     Document(
                         text=page.extractText(),
                         metadata={"page": i + 1, "file_path": self.file_path},

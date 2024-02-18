@@ -15,7 +15,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from raggy.documents import Document, document_to_excerpts
 from raggy.loaders import Loader
-from raggy.utils import multi_glob, rm_html_comments, rm_text_after
+from raggy.utilities.filesystem import multi_glob
+from raggy.utilities.text import rm_html_comments, rm_text_after
 
 
 def get_open_file_limit() -> int:
@@ -155,7 +156,7 @@ class GitHubIssueLoader(Loader):
             A list of `GitHubIssue` objects, each representing an issue.
         """  # noqa: E501
         url = f"https://api.github.com/repos/{self.repo}/issues"
-        issues = []
+        issues: List[GitHubIssue] = []
         page = 1
         async with httpx.AsyncClient() as client:
             while len(issues) < self.n_issues:
@@ -187,9 +188,9 @@ class GitHubIssueLoader(Loader):
         for issue in await self._get_issues():
             self.logger.debug(f"Found {issue.title!r}")
             clean_issue_body = rm_text_after(
-                rm_html_comments(issue.body), self.ignore_body_after
+                rm_html_comments(issue.body or ""), self.ignore_body_after
             )
-            text = f"\n\n##**{issue.title}:**\n{clean_issue_body}\n"
+            text = f"\n\n##**{issue.title}:**\n{clean_issue_body}\n\n"
             if self.include_comments:
                 for (
                     comment
@@ -246,10 +247,12 @@ class GitHubRepoLoader(Loader):
 
                 if (await process.wait()) != 0:
                     raise OSError(
-                        f"Failed to clone repository:\n {await process.stderr.read()}"
+                        f"Failed to clone repository:\n {await process.stderr.read() if process.stderr else ''}"
                     )
 
-                self.logger.debug(f"{await process.stdout.read()}")
+                self.logger.debug(
+                    f"{await process.stdout.read() if process.stdout else ''}"
+                )
 
                 # Read the contents of each file that matches the glob pattern
                 documents = []
