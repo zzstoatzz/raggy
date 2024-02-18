@@ -4,7 +4,7 @@
 pip install raggy
 ```
 
-Read the [docs](zzstoatzz.github.io/raggy/)
+Read the [docs](https://zzstoatzz.github.io/raggy/)
 
 ### examples
 - scraping the web to produce rich documents
