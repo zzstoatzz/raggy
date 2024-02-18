@@ -1,14 +1,8 @@
-import asyncio
-import os
-from typing import Iterable, Union
+from typing import Iterable
 
 import turbopuffer as tpuf
 from pydantic import (
-    BaseModel,
-    ConfigDict,
     Field,
-    ImportString,
-    PrivateAttr,
     SecretStr,
     model_validator,
 )
@@ -16,55 +10,73 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from turbopuffer.vectors import VectorResult
 
 from raggy.documents import Document
-from raggy.utils import create_openai_embeddings
+from raggy.utilities.asyncutils import run_sync_in_worker_thread
+from raggy.utilities.embeddings import create_openai_embeddings
+from raggy.utilities.text import slice_tokens
+from raggy.vectorstores.base import Vectorstore
 
 
 class TurboPufferSettings(BaseSettings):
+    """Settings for the TurboPuffer vectorstore."""
+
     model_config = SettingsConfigDict(
-        env_prefix="raggy_TURBOPUFFER_",
-        env_file="" if os.getenv("raggy_TEST_MODE") else ("~/.raggy/.env", ".env"),
+        env_prefix="RAGGY_TURBOPUFFER_",
+        env_file=("~/.raggy/.env", ".env"),
         arbitrary_types_allowed=True,
+        extra="ignore",
     )
 
     api_key: SecretStr
-    namespace: str = "raggy"
-    fetch_document_fn: ImportString = "raggy.utils.fetch_documents_from_gcs"
+    default_namespace: str = "raggy"
 
     @model_validator(mode="after")
     def set_api_key(self):
-        tpuf.api_key = self.api_key.get_secret_value()
+        if not tpuf.api_key and self.api_key:
+            tpuf.api_key = self.api_key.get_secret_value()
 
 
 tpuf_settings = TurboPufferSettings()
 
 
-class TurboPuffer(BaseModel):
-    """Wrapper for turbopuffer.Namespace as an async context manager."""
+class TurboPuffer(Vectorstore):
+    """Wrapper for turbopuffer.Namespace as an async context manager.
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    Attributes:
+        namespace: The namespace to use for the TurboPuffer instance.
+    """
 
-    ns: tpuf.Namespace = Field(
-        default_factory=lambda: tpuf.Namespace(tpuf_settings.namespace)
-    )
-    _in_context: bool = PrivateAttr(False)
+    namespace: str = Field(default_factory=lambda: tpuf_settings.default_namespace)
+
+    @property
+    def ns(self):
+        return tpuf.Namespace(self.namespace)
 
     async def upsert(
         self,
         documents: Iterable[Document] | None = None,
-        ids: Union[list[str], list[int]] | None = None,
+        ids: list[str] | list[int] | None = None,
         vectors: list[list[float]] | None = None,
         attributes: dict | None = None,
     ):
+        attributes = attributes or {}
+
         if documents is None and vectors is None:
             raise ValueError("Either `documents` or `vectors` must be provided.")
 
         if documents:
             ids = [document.id for document in documents]
-            vectors = await asyncio.gather(
-                *[create_openai_embeddings(document.text) for document in documents]
+            vectors = await create_openai_embeddings(
+                [document.text for document in documents]
             )
+            if attributes.get("text"):
+                raise ValueError(
+                    "The `text` attribute is reserved and cannot be used as a custom attribute."
+                )
+            attributes |= {"text": [document.text for document in documents]}
 
-        self.ns.upsert(ids=ids, vectors=vectors, attributes=attributes)
+        await run_sync_in_worker_thread(
+            self.ns.upsert, ids=ids, vectors=vectors, attributes=attributes
+        )
 
     async def query(
         self,
@@ -82,21 +94,83 @@ class TurboPuffer(BaseModel):
             if vector is None:
                 raise ValueError("Either `text` or `vector` must be provided.")
 
-        return self.ns.query(
+        return await run_sync_in_worker_thread(
+            self.ns.query,
             vector=vector,
             top_k=top_k,
             distance_metric=distance_metric,
             filters=filters,
-            include_attributes=include_attributes,
+            include_attributes=include_attributes or ["text"],
             include_vectors=include_vectors,
         )
 
-    async def delete(self, ids: Union[str, int, list[str], list[int]]):
-        self.ns.delete(ids)
+    async def delete(self, ids: str | int | list[str] | list[int]):
+        await run_sync_in_worker_thread(self.ns.delete, ids=ids)
 
-    async def __aenter__(self):
-        self._in_context = True
-        return self
+    async def reset(self):
+        try:
+            await run_sync_in_worker_thread(self.ns.delete_all)
+        except tpuf.APIError as e:
+            if e.status_code == 404:
+                self.logger.debug_kv("404", "Namespace already empty.")
+            else:
+                raise
 
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        self._in_context = False
+    async def ok(self) -> bool:
+        try:
+            return await run_sync_in_worker_thread(self.ns.exists)
+        except tpuf.APIError as e:
+            if e.status_code == 404:
+                self.logger.debug_kv("404", "Namespace does not exist.")
+                return False
+            raise
+
+
+async def query_namespace(
+    query_text: str,
+    filters: dict | None = None,
+    namespace: str = "raggy",
+    top_k: int = 10,
+    max_tokens: int = 500,
+) -> str:
+    """Query a TurboPuffer namespace.
+
+    Args:
+        query_text: The text to query for.
+        filters: Filters to apply to the query.
+        namespace: The namespace to query.
+        top_k: The number of results to return.
+
+    Examples:
+        Basic Usage of `query_namespace`
+        ```python
+        from raggy.vectorstores.tpuf import query_namespace
+
+        print(await query_namespace("How to create a flow in Prefect?"))
+        ```
+
+        Using `filters` with `query_namespace`
+        ```python
+        from raggy.vectorstores.tpuf import query_namespace
+
+        filters={
+            'id': [['In', [1, 2, 3]]],
+            'key1': [['Eq', 'one']],
+            'filename': [['Or', [['Glob', '**.md'], ['Glob', '**.py']]], ['NotGlob', '/migrations/**']]
+        }
+
+        print(await query_namespace("How to create a flow in Prefect?", filters=filters))
+        ```
+    """
+    async with TurboPuffer(namespace=namespace) as tpuf:
+        vector_result = await tpuf.query(
+            text=query_text,
+            filters=filters,
+            top_k=top_k,
+        )
+
+        concatenated_result = "\n".join(
+            row.attributes["text"] for row in vector_result.data
+        )
+
+        return slice_tokens(concatenated_result, max_tokens)

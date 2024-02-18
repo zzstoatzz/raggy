@@ -1,16 +1,16 @@
 import asyncio
 import inspect
 from functools import partial
-from typing import Annotated
+from typing import Annotated, Iterable
 
-from jinja2 import Template
-from marvin.utilities.jinja import JinjaEnvironment
-from marvin.utilities.strings import count_tokens
+from jinja2 import Environment, Template
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from raggy.utils import extract_keywords, generate_prefixed_uuid, hash_text, split_text
+from raggy.utilities.collections import distinct
+from raggy.utilities.ids import generate_prefixed_uuid
+from raggy.utilities.text import count_tokens, extract_keywords, hash_text, split_text
 
-jinja_env = JinjaEnvironment(enable_async=True)
+jinja_env = Environment(enable_async=True)
 
 
 class DocumentMetadata(BaseModel):
@@ -29,9 +29,8 @@ class Document(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
 
-    text: str = Field(..., description="Document text content.")
-
     id: str = Field(default_factory=partial(generate_prefixed_uuid, "doc"))
+    text: str = Field(..., description="Document text content.")
 
     embedding: list[float] | None = Field(default=None)
     metadata: DocumentMetadata = Field(default_factory=DocumentMetadata)
@@ -89,11 +88,10 @@ async def document_to_excerpts(
     if not excerpt_template:
         excerpt_template = EXCERPT_TEMPLATE
 
-    text_chunks = split_text(
+    text_chunks: list[str] = split_text(
         text=document.text,
         chunk_size=chunk_tokens,
         chunk_overlap=overlap,
-        return_index=True,
     )
 
     return await asyncio.gather(
@@ -105,7 +103,7 @@ async def document_to_excerpts(
                 excerpt_template=excerpt_template,
                 **extra_template_kwargs,
             )
-            for i, (text, _) in enumerate(text_chunks)
+            for i, text in enumerate(text_chunks)
         ]
     )
 
@@ -131,3 +129,8 @@ async def _create_excerpt(
         metadata=document.metadata if document.metadata else {},
         tokens=count_tokens(excerpt_text),
     )
+
+
+def get_distinct_documents(documents: Iterable["Document"]) -> Iterable["Document"]:
+    """Return a list of distinct documents."""
+    return distinct(documents, key=lambda doc: doc.hash)

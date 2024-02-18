@@ -1,13 +1,62 @@
+from typing import Callable
+
+from bs4 import BeautifulSoup
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def default_html_parser(html: str) -> str:
+    from raggy.utilities.logging import get_logger
+
+    get_logger().warning_kv(
+        "USING DEFAULT HTML PARSER",
+        (
+            "BeautifulSoup's html.parser is the default parser and is not very good. "
+            "Consider setting `raggy.settings.html_parser` to a `Callable[[str], str]` that parses HTML well."
+        ),
+        "red",
+    )
+    return BeautifulSoup(html, "html.parser").get_text()
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="RAGGY_",
-        env_file=".env",
+        env_file=("~/.raggy/.env", ".env"),
         extra="allow",
         validate_assignment=True,
     )
+
+    html_parser: Callable[[str], str] = default_html_parser
+
+    log_level: str = Field(
+        default="INFO",
+        description="The log level to use.",
+    )
+
+    log_verbose: bool = Field(
+        default=False,
+        description=(
+            "Whether to log verbose messages, such as full API requests and responses."
+        ),
+    )
+    openai_chat_completions_model: str = Field(
+        default="gpt-3.5-turbo",
+        description="The OpenAI model to use for chat completions.",
+    )
+
+    openai_embeddings_model: str = Field(
+        default="text-embedding-3-small",
+        description="The OpenAI model to use for creating embeddings.",
+    )
+
+    @field_validator("log_level", mode="after")
+    @classmethod
+    def set_log_level(cls, v):
+        from raggy.utilities.logging import setup_logging
+
+        setup_logging(level=v)
+        return v
 
 
 settings = Settings()

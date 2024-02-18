@@ -10,12 +10,11 @@ except ImportError:
         "You must have `chromadb` installed to use the Chroma vector store. "
         "Install it with `pip install 'raggy[chroma]'`."
     )
-from marvin.utilities.asyncio import run_async
-from pydantic import BaseModel, model_validator
 
-import raggy
-from raggy.documents import Document
-from raggy.utils import create_openai_embeddings, get_distinct_documents
+from raggy.documents import Document, get_distinct_documents
+from raggy.utilities.asyncutils import run_sync_in_worker_thread
+from raggy.utilities.embeddings import create_openai_embeddings
+from raggy.vectorstores.base import Vectorstore
 
 
 def get_client(client_type: Literal["base", "http"]) -> HttpClient:
@@ -27,29 +26,25 @@ def get_client(client_type: Literal["base", "http"]) -> HttpClient:
         raise ValueError(f"Unknown client type: {client_type}")
 
 
-class Chroma(BaseModel):
+class Chroma(Vectorstore):
     """A wrapper for chromadb.Client - used as an async context manager"""
 
     client_type: Literal["base", "http"] = "base"
-    collection: Collection | None = None
+    collection_name: str = "raggy"
 
-    _in_context: bool = False
-
-    @model_validator(mode="after")
-    def validate_collection(self):
-        if not self.collection:
-            self.collection = get_client(self.client_type).get_or_create_collection(
-                name="raggy"
-            )
-        return self
+    @property
+    def collection(self) -> Collection:
+        return get_client(self.client_type).get_or_create_collection(
+            name=self.collection_name
+        )
 
     async def delete(
         self,
-        ids: list[str] = None,
-        where: dict = None,
-        where_document: Document = None,
+        ids: list[str] | None = None,
+        where: dict | None = None,
+        where_document: Document | None = None,
     ):
-        await run_async(
+        await run_sync_in_worker_thread(
             self.collection.delete,
             ids=ids,
             where=where,
@@ -70,23 +65,25 @@ class Chroma(BaseModel):
             ),
         )
 
-        await run_async(self.collection.add, **kwargs)
+        await run_sync_in_worker_thread(self.collection.add, **kwargs)
 
-        get_result = await run_async(self.collection.get, ids=kwargs["ids"])
+        get_result = await run_sync_in_worker_thread(
+            self.collection.get, ids=kwargs["ids"]
+        )
 
         return get_result.get("documents")
 
     async def query(
         self,
-        query_embeddings: list[list[float]] = None,
-        query_texts: list[str] = None,
+        query_embeddings: list[list[float]] | None = None,
+        query_texts: list[str] | None = None,
         n_results: int = 10,
-        where: dict = None,
-        where_document: dict = None,
+        where: dict | None = None,
+        where_document: dict | None = None,
         include: "Include" = ["metadatas"],
         **kwargs,
     ) -> "QueryResult":
-        return await run_async(
+        return await run_sync_in_worker_thread(
             self.collection.query,
             query_embeddings=query_embeddings,
             query_texts=query_texts,
@@ -98,7 +95,7 @@ class Chroma(BaseModel):
         )
 
     async def count(self) -> int:
-        return await run_async(self.collection.count)
+        return await run_sync_in_worker_thread(self.collection.count)
 
     async def upsert(self, documents: list[Document]):
         documents = list(get_distinct_documents(documents))
@@ -113,35 +110,33 @@ class Chroma(BaseModel):
                 [document.text for document in documents]
             ),
         )
-        await run_async(self.collection.upsert, **kwargs)
+        await run_sync_in_worker_thread(self.collection.upsert, **kwargs)
 
-        get_result = await run_async(self.collection.get, ids=kwargs["ids"])
+        get_result = await run_sync_in_worker_thread(
+            self.collection.get, ids=kwargs["ids"]
+        )
 
         return get_result.get("documents")
 
     async def reset_collection(self):
-        """Delete and recreate the collection."""
         client = get_client(self.client_type)
-        await run_async(client.delete_collection, self.collection.name)
-        self.collection = await run_async(
-            client.create_collection,
-            name=self.collection.name,
-        )
+        try:
+            await run_sync_in_worker_thread(
+                client.delete_collection, self.collection_name
+            )
+        except ValueError:
+            self.logger.warning_kv(
+                "Collection not found",
+                f"Creating a new collection {self.collection_name!r}",
+            )
+        await run_sync_in_worker_thread(client.create_collection, self.collection_name)
 
     def ok(self) -> bool:
-        logger = raggy.utilities.logging.get_logger()
         try:
             version = self.client.get_version()
         except Exception as e:
-            logger.error(f"Cannot connect to Chroma: {e}")
+            self.logger.error_kv("Connection error", f"Cannot connect to Chroma: {e}")
         if re.match(r"^\d+\.\d+\.\d+$", version):
-            logger.debug(f"Connected to Chroma v{version}")
+            self.logger.debug_kv("OK", f"Connected to Chroma {version!r}")
             return True
         return False
-
-    async def __aenter__(self):
-        self._in_context = True
-        return self
-
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        self._in_context = False

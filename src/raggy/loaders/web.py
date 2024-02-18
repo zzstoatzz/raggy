@@ -1,6 +1,5 @@
 import asyncio
 import re
-from typing import Union
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -8,9 +7,10 @@ from fake_useragent import UserAgent
 from httpx import AsyncClient, Response
 from pydantic import Field
 
+import raggy
 from raggy.documents import Document, document_to_excerpts
 from raggy.loaders.base import Loader, MultiLoader
-from raggy.utils import batched, html_to_content
+from raggy.utilities.collections import batched
 
 user_agent = UserAgent()
 
@@ -63,7 +63,7 @@ class URLLoader(WebLoader):
             if isinstance(d, Exception):
                 self.logger.error(d)
             elif d is not None:
-                final_documents.extend(await document_to_excerpts(d))
+                final_documents.extend(await document_to_excerpts(d))  # type: ignore
         return final_documents
 
     async def load_url(self, url, client) -> Document | None:
@@ -74,7 +74,6 @@ class URLLoader(WebLoader):
             self.logger.warning_style(
                 f"Received status {response.status_code} from {url}", "red"
             )
-            return
 
         # check for a meta refresh redirect in the response content
         soup = BeautifulSoup(response.text, "html.parser")
@@ -120,21 +119,20 @@ class HTMLLoader(URLLoader):
 
     async def get_document_text(self, response: Response) -> str:
         text = await super().get_document_text(response)
-        return html_to_content(text)
+        return raggy.settings.html_parser(text)
 
 
 class SitemapLoader(URLLoader):
-    include: list[Union[str, re.Pattern]] = Field(default_factory=list)
-    exclude: list[Union[str, re.Pattern]] = Field(default_factory=list)
+    include: list[str | re.Pattern] = Field(default_factory=list)
+    exclude: list[str | re.Pattern] = Field(default_factory=list)
     url_loader: URLLoader = Field(default_factory=HTMLLoader)
 
     async def _get_loader(self) -> Loader:
         urls = await asyncio.gather(*[self.load_sitemap(url) for url in self.urls])
-        urls = [u for url_list in urls for u in url_list]
         return MultiLoader(
             loaders=[
                 type(self.url_loader)(urls=url_batch, headers=await self.get_headers())
-                for url_batch in batched(urls, 10)
+                for url_batch in batched([u for url_list in urls for u in url_list], 10)
             ]
         )
 
