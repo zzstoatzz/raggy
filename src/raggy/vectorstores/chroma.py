@@ -14,6 +14,7 @@ except ImportError:
 from raggy.documents import Document, get_distinct_documents
 from raggy.utilities.asyncutils import run_sync_in_worker_thread
 from raggy.utilities.embeddings import create_openai_embeddings
+from raggy.utilities.text import slice_tokens
 from raggy.vectorstores.base import Vectorstore
 
 
@@ -27,7 +28,23 @@ def get_client(client_type: Literal["base", "http"]) -> HttpClient:
 
 
 class Chroma(Vectorstore):
-    """A wrapper for chromadb.Client - used as an async context manager"""
+    """A wrapper for chromadb.Client - used as an async context manager.
+
+    Attributes:
+        client_type: The type of client to use. Must be one of "base" or "http".
+        collection_name: The name of the collection to use.
+
+    Example:
+        Query a collection:
+        ```python
+        from raggy.vectorstores.chroma import Chroma
+
+        async with Chroma(collection_name="my-collection") as chroma:
+            result = await chroma.query(query_texts=["Hello, world!"])
+            print(result)
+        ```
+
+    """
 
     client_type: Literal["base", "http"] = "base"
     collection_name: str = "raggy"
@@ -140,3 +157,46 @@ class Chroma(Vectorstore):
             self.logger.debug_kv("OK", f"Connected to Chroma {version!r}")
             return True
         return False
+
+
+async def query_collection(
+    query_text: str,
+    query_embedding: list[float] | None = None,
+    collection_name: str = "raggy",
+    top_k: int = 10,
+    where: dict | None = None,
+    where_document: dict | None = None,
+    max_tokens: int = 500,
+) -> str:
+    """Query a Chroma collection.
+
+    Args:
+        query_text: The text to query for.
+        filters: Filters to apply to the query.
+        collection: The collection to query.
+        top_k: The number of results to return.
+
+    Example:
+        Basic query of a collection:
+        ```python
+        from raggy.vectorstores.chroma import query_collection
+
+        print(await query_collection("How to create a flow in Prefect?"))
+        ```
+    """
+    async with Chroma(collection_name=collection_name) as chroma:
+        query_embedding = query_embedding or await create_openai_embeddings(query_text)
+
+        query_result = await chroma.query(
+            query_embeddings=[query_embedding],
+            n_results=top_k,
+            where=where,
+            where_document=where_document,
+            include=["documents"],
+        )
+
+        concatenated_result = "\n".join(
+            doc for doc in query_result.get("documents", [])
+        )
+
+        return slice_tokens(concatenated_result, max_tokens)

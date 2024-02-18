@@ -44,6 +44,9 @@ class WebLoader(Loader):
 class URLLoader(WebLoader):
     """
     Given a list of URLs, loads whatever it finds there.
+
+    Attributes:
+        urls: The URLs to load from.
     """
 
     source_type: str = "url"
@@ -123,6 +126,23 @@ class HTMLLoader(URLLoader):
 
 
 class SitemapLoader(URLLoader):
+    """A loader that loads URLs from a sitemap.
+
+    Attributes:
+        include: A list of strings or regular expressions. Only URLs that match one of these will be included.
+        exclude: A list of strings or regular expressions. URLs that match one of these will be excluded.
+        url_loader: The loader to use for loading the URLs.
+
+    Examples:
+        Load all URLs from a sitemap:
+        ```python
+        from raggy.loaders.web import SitemapLoader
+        loader = SitemapLoader(urls=["https://askmarvin.ai/sitemap.xml"])
+        documents = await loader.load()
+        print(documents)
+        ```
+    """
+
     include: list[str | re.Pattern] = Field(default_factory=list)
     exclude: list[str | re.Pattern] = Field(default_factory=list)
     url_loader: URLLoader = Field(default_factory=HTMLLoader)

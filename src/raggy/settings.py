@@ -6,6 +6,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def default_html_parser(html: str) -> str:
+    """The default HTML parser. This uses `bs4`'s `html.parser`, which is not very good.
+    Like, at all.
+
+    In fact it's really bad. You should definitely set `raggy.settings.html_parser` to a
+    `Callable[[str], str]` that parses HTML well.
+
+    Args:
+        html: The HTML to parse.
+
+    Returns:
+        The parsed HTML.
+    """
     from raggy.utilities.logging import get_logger
 
     get_logger().warning_kv(
@@ -20,6 +32,17 @@ def default_html_parser(html: str) -> str:
 
 
 class Settings(BaseSettings):
+    """The settings for Raggy.
+
+    Attributes:
+        html_parser: The function to use for parsing HTML.
+        log_level: The log level to use.
+        log_verbose: Whether to log verbose messages.
+        openai_chat_completions_model: The OpenAI model to use for chat completions.
+        openai_embeddings_model: The OpenAI model to use for creating embeddings.
+
+    """
+
     model_config = SettingsConfigDict(
         env_prefix="RAGGY_",
         env_file=("~/.raggy/.env", ".env"),

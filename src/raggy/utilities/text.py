@@ -29,6 +29,27 @@ def rm_text_after(text: str, substring: str) -> str:
 
 
 def extract_keywords(text: str) -> list[str]:
+    """Extract keywords from the given text using the yake library.
+
+    Args:
+        text: The text to extract keywords from.
+
+    Returns:
+        list[str]: The keywords extracted from the text.
+
+    Raises:
+        ImportError: If yake is not installed.
+
+    Example:
+        Extract keywords from a text:
+        ```python
+        from raggy.utilities.text import extract_keywords
+
+        text = "This is a sample text from which we will extract keywords."
+        keywords = extract_keywords(text)
+        print(keywords) # ['keywords', 'sample', 'text', 'extract']
+        ```
+    """
     try:
         import yake
     except ImportError:
@@ -52,11 +73,47 @@ def extract_keywords(text: str) -> list[str]:
 
 @lru_cache(maxsize=2048)
 def hash_text(*text: str) -> str:
+    """Hash the given text using the xxhash algorithm.
+
+    Args:
+        text: The text to hash.
+
+    Returns:
+        str: The hash of the text.
+
+    Example:
+        Hash a single text:
+        ```python
+        from raggy.utilities.text import hash_text
+
+        text = "This is a sample text."
+        hash_ = hash_text(text)
+        print(hash_) # 4a2db845d20188ce069196726a065a09
+        ```
+    """
     bs = [t.encode() if not isinstance(t, bytes) else t for t in text]
     return xxhash.xxh3_128_hexdigest(b"".join(bs))
 
 
 def get_encoding_for_model(model: str | None = None) -> tiktoken.Encoding:
+    """Get the `tiktoken` encoding for the specified model.
+
+    Args:
+        model: The model to get the encoding for. If not provided, the default
+            chat completions model is used (as specified in `raggy.settings`).
+            If an invalid model is provided, 'gpt-3.5-turbo' is used.
+
+    Returns:
+        tiktoken.Encoding: The encoding for the specified model.
+
+    Example:
+        Get the encoding for the default chat completions model:
+        ```python
+        from raggy.utilities.text import get_encoding_for_model
+
+        encoding = get_encoding_for_model() # 'gpt-3.5-turbo' by default
+        ```
+    """
     if model is None:
         model = raggy.settings.openai_chat_completions_model
     try:
@@ -119,6 +176,16 @@ def slice_tokens(text: str, n_tokens: int) -> str:
 
     Returns:
         str: The sliced text.
+
+    Example:
+        Slice a text to the first 50 tokens:
+        ```python
+        from raggy.utilities.text import slice_tokens
+
+        text = "This is a sample text."*100
+        sliced_text = slice_tokens(text, 5)
+        print(sliced_text) # 'This is a sample text.'
+        ```
     """
     return detokenize(tokenize(text)[:n_tokens])
 
@@ -138,6 +205,19 @@ def split_text(
         chunk_overlap: The fraction of overlap between chunks.
         last_chunk_threshold: If the last chunk is less than this fraction of
             the chunk_size, it will be added to the prior chunk
+
+    Returns:
+        list[str]: The list of chunks.
+
+    Example:
+        Split a text into chunks of 5 tokens with 10% overlap:
+        ```python
+        from raggy.utilities.text import split_text
+
+        text = "This is a sample text."*3
+        chunks = split_text(text, 5, 0.1)
+        print(chunks) # ['This is a sample text', '.This is a sample text', '.This is a sample text.']
+        ```
     """
     if chunk_overlap is None:
         chunk_overlap = 0.1

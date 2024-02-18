@@ -29,6 +29,32 @@ def is_valid_url(url):
 
 
 class PDFLoader(Loader):
+    """A loader for PDF files.
+
+    Attributes:
+        file_path: The path to the PDF file or a URL to download the PDF from.
+
+    Examples:
+        Load a PDF file from a local path:
+        ```python
+        from raggy.loaders.pdf import PDFLoader
+
+        loader = PDFLoader(file_path="path/to/file.pdf")
+        documents = await loader.load()
+        print(documents)
+        ```
+
+        Load a PDF file from a URL:
+        ```python
+        from raggy.loaders.pdf import PDFLoader
+
+        loader = PDFLoader(file_path="https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")
+        documents = await loader.load()
+        print(documents)
+        ```
+
+    """
+
     file_path: str
 
     @asynccontextmanager
@@ -51,7 +77,7 @@ class PDFLoader(Loader):
                 for i, page in enumerate(pdf_reader.pages)
                 for document in await document_to_excerpts(
                     Document(
-                        text=page.extractText(),
+                        text=page.extract_text(),
                         metadata={"page": i + 1, "file_path": self.file_path},
                     )
                 )

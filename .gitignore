@@ -180,3 +180,6 @@ src/raggy/_version.py
 .prefect/
 .prefect/*.json
 .prefectignore
+
+# ruff
+.ruff_cache

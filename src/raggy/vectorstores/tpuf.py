@@ -43,6 +43,25 @@ class TurboPuffer(Vectorstore):
 
     Attributes:
         namespace: The namespace to use for the TurboPuffer instance.
+
+    Examples:
+        Upsert documents to a namespace:
+        ```python
+        from raggy.documents import Document
+        from raggy.vectorstores.tpuf import TurboPuffer
+
+        async with TurboPuffer() as tpuf: # default namespace is "raggy"
+            await tpuf.upsert(documents=[Document(id="1", text="Hello, world!")])
+        ```
+
+        Query a namespace:
+        ```python
+        from raggy.vectorstores.tpuf import TurboPuffer
+
+        async with TurboPuffer() as tpuf:
+            result = await tpuf.query(text="Hello, world!")
+            print(result)
+        ```
     """
 
     namespace: str = Field(default_factory=lambda: tpuf_settings.default_namespace)

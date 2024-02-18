@@ -1,7 +1,6 @@
 """Loaders for GitHub."""
 import asyncio
 import functools
-import math
 import os
 import re
 from datetime import datetime
@@ -11,32 +10,12 @@ from typing import Dict, List, Tuple
 import aiofiles
 import chardet
 import httpx
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from raggy.documents import Document, document_to_excerpts
 from raggy.loaders import Loader
-from raggy.utilities.filesystem import multi_glob
+from raggy.utilities.filesystem import OPEN_FILE_CONCURRENCY, multi_glob
 from raggy.utilities.text import rm_html_comments, rm_text_after
-
-
-def get_open_file_limit() -> int:
-    """Get the maximum number of open files allowed for the current process"""
-
-    try:
-        if os.name == "nt":
-            import ctypes
-
-            return ctypes.cdll.ucrtbase._getmaxstdio()
-        else:
-            import resource
-
-            soft_limit, _ = resource.getrlimit(resource.RLIMIT_NOFILE)
-            return soft_limit
-    except Exception:
-        return 200
-
-
-OPEN_FILE_CONCURRENCY = asyncio.Semaphore(math.floor(get_open_file_limit() / 2))
 
 
 async def read_file_with_chardet(file_path, errors="replace"):
@@ -50,27 +29,19 @@ async def read_file_with_chardet(file_path, errors="replace"):
 
 
 class GitHubUser(BaseModel):
-    """GitHub user."""
-
     login: str
 
 
 class GitHubComment(BaseModel):
-    """GitHub comment."""
-
     body: str = Field(default="")
     user: GitHubUser = Field(default_factory=GitHubUser)
 
 
 class GitHubLabel(BaseModel):
-    """GitHub label."""
-
     name: str = Field(default="")
 
 
 class GitHubIssue(BaseModel):
-    """GitHub issue."""
-
     created_at: datetime = Field(...)
     html_url: str = Field(...)
     number: int = Field(...)
@@ -91,9 +62,14 @@ class GitHubIssueLoader(Loader):
 
     **Beware** the [GitHub API rate limit](https://docs.github.com/en/rest/overview/resources-in-the-rest-api#rate-limiting).
 
-    Use `use_GH_token` to authenticate with your `GITHUB_TOKEN` environment variable and increase the rate limit.
-
-    """  # noqa: E501
+    Attributes:
+        repo: The GitHub repository in the format 'owner/repo'.
+        n_issues: The number of issues to load.
+        include_comments: Whether to include comments in the issues.
+        ignore_body_after: The text to ignore in the issue body.
+        ignore_users: A list of users to ignore.
+        use_GH_token: Whether to use the `GITHUB_TOKEN` environment variable for authentication (recommended).
+    """
 
     source_type: str = "github issue"
 
@@ -107,13 +83,11 @@ class GitHubIssueLoader(Loader):
 
     request_headers: Dict[str, str] = Field(default_factory=dict)
 
-    @field_validator("request_headers")
-    def auth_headers(cls, v, values):
-        """Add authentication headers if a GitHub token is available."""
-        v.update({"Accept": "application/vnd.github.v3+json"})
-        if values["use_GH_token"] and (token := os.getenv("GITHUB_TOKEN")):
-            v["Authorization"] = f"Bearer {token}"
-        return v
+    @model_validator(mode="after")
+    def auth_headers(self):
+        self.request_headers.update({"Accept": "application/vnd.github.v3+json"})
+        if self.use_GH_token and (token := os.getenv("GITHUB_TOKEN")):
+            self.request_headers["Authorization"] = f"Bearer {token}"
 
     @staticmethod
     @functools.lru_cache(maxsize=2048)
@@ -218,7 +192,28 @@ class GitHubIssueLoader(Loader):
 
 
 class GitHubRepoLoader(Loader):
-    """Loader for files on GitHub that match a glob pattern."""
+    """Loader for files on GitHub that match a glob pattern.
+
+
+    Attributes:
+        repo: The GitHub repository in the format 'owner/repo'.
+        include_globs: A list of glob patterns to include.
+        exclude_globs: A list of glob patterns to exclude.
+
+    Raises:
+        ValueError: If the repository is not in the format 'owner/repo'.
+
+    Example:
+        Load all files from the `prefecthq/prefect`
+        ```python
+        from raggy.loaders.github import GitHubRepoLoader
+
+        loader = GitHubRepoLoader(repo="prefecthq/prefect")
+
+        documents = await loader.load()
+        print(documents)
+        ```
+    """
 
     source_type: str = "github source code"
 
@@ -228,7 +223,6 @@ class GitHubRepoLoader(Loader):
 
     @field_validator("repo")
     def validate_repo(cls, v):
-        """Validate the GitHub repository."""
         if not re.match(r"^[^/\s]+/[^/\s]+$", v):
             raise ValueError(
                 "Must provide a GitHub repository in the format 'owner/repo'"

@@ -4,6 +4,26 @@ from raggy.utilities.logging import RaggyLogger, get_logger
 
 
 class Vectorstore(BaseModel):
+    """Base class for vectorstores.
+
+    Allows for easy logging and async context management.
+
+    Attributes:
+        _in_context: Whether the vectorstore is currently in an async context.
+
+    Example:
+        Basic Usage of `Vectorstore`
+        ```python
+        from raggy.vectorstores.base import Vectorstore
+
+        class MyVectorstore(Vectorstore):
+            pass
+
+        async with MyVectorstore() as vectorstore:
+            ...
+        ```
+    """
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     _in_context: bool = PrivateAttr(False)
