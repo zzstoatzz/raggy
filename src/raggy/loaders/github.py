@@ -3,14 +3,14 @@ import asyncio
 import functools
 import os
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import aiofiles
 import chardet
 import httpx
-from pydantic import BaseModel, Field, field_validator, model_validator
+from gh_util.types import GitHubComment, GitHubIssue
+from pydantic import Field, field_validator, model_validator
 
 from raggy.documents import Document, document_to_excerpts
 from raggy.loaders import Loader
@@ -28,39 +28,10 @@ async def read_file_with_chardet(file_path, errors="replace"):
     return text
 
 
-class GitHubUser(BaseModel):
-    login: str
-
-
-class GitHubComment(BaseModel):
-    body: str = Field(default="")
-    user: GitHubUser = Field(default_factory=GitHubUser)
-
-
-class GitHubLabel(BaseModel):
-    name: str = Field(default="")
-
-
-class GitHubIssue(BaseModel):
-    created_at: datetime = Field(...)
-    html_url: str = Field(...)
-    number: int = Field(...)
-    title: str = Field(default="")
-    body: str | None = Field(default="")
-    labels: List[GitHubLabel] = Field(default_factory=GitHubLabel)
-    user: GitHubUser = Field(default_factory=GitHubUser)
-
-    @field_validator("body")
-    def validate_body(cls, v):
-        if not v:
-            return ""
-        return v
-
-
 class GitHubIssueLoader(Loader):
     """Loader for GitHub issues in a given repository.
 
-    **Beware** the [GitHub API rate limit](https://docs.github.com/en/rest/overview/resources-in-the-rest-api#rate-limiting).
+    **Beware** the [GitHub API rate limit](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
 
     Attributes:
         repo: The GitHub repository in the format 'owner/repo'.

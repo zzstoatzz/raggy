@@ -56,6 +56,7 @@ class PDFLoader(Loader):
     """
 
     file_path: str
+    chunk_tokens: int = 500
 
     @asynccontextmanager
     async def open_pdf_file(self, file_path: str):
@@ -79,6 +80,7 @@ class PDFLoader(Loader):
                     Document(
                         text=page.extract_text(),
                         metadata={"page": i + 1, "file_path": self.file_path},
-                    )
+                    ),
+                    chunk_tokens=self.chunk_tokens,
                 )
             ]
