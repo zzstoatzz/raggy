@@ -1,5 +1,7 @@
 from datetime import timedelta
 
+import httpx
+from bs4 import BeautifulSoup
 from prefect import flow, task
 from prefect.tasks import task_input_hash
 from prefect.utilities.annotations import quote
@@ -23,13 +25,40 @@ def html_parser(html: str) -> str:
 
 raggy.settings.html_parser = html_parser
 
+links = [
+    item.a['href'] 
+    for item in BeautifulSoup(
+        httpx.get("https://docs.prefect.io/latest/integrations/").text,
+        'html.parser'
+    ).select('div.collection-item')
+]
+
+IGNORE_COLLECTIONS = {
+    "census",
+    "firebolt",
+    "prefect-github",
+    "hightouch",
+    "hex",
+    "monday",
+    "monte-carlo",
+    "openai",
+    "openmetadata", 
+}
+
 prefect_website_loaders = [
     SitemapLoader(
-        urls=["https://docs.prefect.io/sitemap.xml", "https://prefect.io/sitemap.xml"],
+        urls=[
+            url + "sitemap.xml"
+            for url in links + ["https://docs.prefect.io/latest/", "https://www.prefect.io/"]
+            if "prefecthq.github.io" in url and not any(
+                collection in url for collection in IGNORE_COLLECTIONS
+            )
+        ],
         exclude=["api-ref", "/events/"],
     )
 ]
 
+print(f"Found {len(prefect_website_loaders)} sitemaps to load.")
 
 @task(
     retries=2,
@@ -38,7 +67,7 @@ prefect_website_loaders = [
     cache_expiration=timedelta(days=1),
     task_run_name="Run {loader.__class__.__name__}",
     persist_result=True,
-    # refresh_cache=True,
+    refresh_cache=True,
 )
 async def run_loader(loader: Loader) -> list[Document]:
     return await loader.load()
@@ -58,7 +87,7 @@ async def refresh_tpuf_namespace(namespace: str = "testing", reset: bool = False
     async with TurboPuffer(namespace=namespace) as tpuf:
         if reset:
             await tpuf.reset()
-            print(f"Deleted all documents from tpuf ns {namespace!r}.")
+            print(f"RESETTING: Deleted all documents from tpuf ns {namespace!r}.")
 
         await tpuf.upsert(documents=documents)
 
