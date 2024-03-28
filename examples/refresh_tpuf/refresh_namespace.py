@@ -26,11 +26,10 @@ def html_parser(html: str) -> str:
 raggy.settings.html_parser = html_parser
 
 links = [
-    item.a['href'] 
+    item.a["href"]
     for item in BeautifulSoup(
-        httpx.get("https://docs.prefect.io/latest/integrations/").text,
-        'html.parser'
-    ).select('div.collection-item')
+        httpx.get("https://docs.prefect.io/latest/integrations/").text, "html.parser"
+    ).select("div.collection-item")
 ]
 
 IGNORE_COLLECTIONS = {
@@ -42,23 +41,24 @@ IGNORE_COLLECTIONS = {
     "monday",
     "monte-carlo",
     "openai",
-    "openmetadata", 
+    "openmetadata",
 }
 
 prefect_website_loaders = [
     SitemapLoader(
         urls=[
             url + "sitemap.xml"
-            for url in links + ["https://docs.prefect.io/latest/", "https://www.prefect.io/"]
-            if "prefecthq.github.io" in url and not any(
-                collection in url for collection in IGNORE_COLLECTIONS
-            )
+            for url in links
+            + ["https://docs.prefect.io/latest/", "https://www.prefect.io/"]
+            if "prefecthq.github.io" in url
+            and not any(collection in url for collection in IGNORE_COLLECTIONS)
         ],
         exclude=["api-ref", "/events/"],
     )
 ]
 
 print(f"Found {len(prefect_website_loaders)} sitemaps to load.")
+
 
 @task(
     retries=2,
