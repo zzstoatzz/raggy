@@ -1,3 +1,4 @@
+import asyncio
 from typing import Iterable
 
 import turbopuffer as tpuf
@@ -193,3 +194,22 @@ async def query_namespace(
         )
 
         return slice_tokens(concatenated_result, max_tokens)
+
+
+async def multi_query_tpuf(
+    queries: list[str], n_results: int = 3, namespace: str = "raggy"
+) -> str:
+    """searches a Turbopuffer namespace for the given queries"""
+    results = await asyncio.gather(
+        *[
+            query_namespace(
+                query,
+                namespace=namespace,
+                top_k=n_results,
+                max_tokens=800 // len(queries),
+            )
+            for query in queries
+        ]
+    )
+
+    return "\n\n".join(results)
