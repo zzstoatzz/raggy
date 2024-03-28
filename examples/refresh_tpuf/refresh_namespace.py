@@ -49,15 +49,16 @@ prefect_website_loaders = [
         urls=[
             url + "sitemap.xml"
             for url in links
-            + ["https://docs.prefect.io/latest/", "https://www.prefect.io/"]
             if "prefecthq.github.io" in url
             and not any(collection in url for collection in IGNORE_COLLECTIONS)
+        ]
+        + [
+            "https://docs.prefect.io/latest/sitemap.xml",
+            "https://www.prefect.io/sitemap.xml",
         ],
         exclude=["api-ref", "/events/"],
     )
 ]
-
-print(f"Found {len(prefect_website_loaders)} sitemaps to load.")
 
 
 @task(
@@ -97,4 +98,4 @@ async def refresh_tpuf_namespace(namespace: str = "testing", reset: bool = False
 if __name__ == "__main__":
     import asyncio
 
-    asyncio.run(refresh_tpuf_namespace(reset=True))
+    asyncio.run(refresh_tpuf_namespace(namespace="marvin-slackbot", reset=True))
