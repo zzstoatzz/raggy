@@ -21,7 +21,7 @@ class TurboPufferSettings(BaseSettings):
     """Settings for the TurboPuffer vectorstore."""
 
     model_config = SettingsConfigDict(
-        env_prefix="RAGGY_TURBOPUFFER_",
+        env_prefix="TURBOPUFFER_",
         env_file=("~/.raggy/.env", ".env"),
         arbitrary_types_allowed=True,
         extra="ignore",
@@ -34,6 +34,7 @@ class TurboPufferSettings(BaseSettings):
     def set_api_key(self):
         if not tpuf.api_key and self.api_key:
             tpuf.api_key = self.api_key.get_secret_value()
+        return self
 
 
 tpuf_settings = TurboPufferSettings()
