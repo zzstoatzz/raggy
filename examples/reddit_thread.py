@@ -3,18 +3,25 @@ from functools import lru_cache
 import marvin  # pip install marvin
 import praw  # pip install praw
 from marvin.utilities.logging import get_logger
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-import raggy  # pip install raggy
 from raggy.documents import Document, document_to_excerpts
 from raggy.vectorstores.tpuf import TurboPuffer, query_namespace
 
 logger = get_logger("reddit_thread_example")
 
 
-def create_reddit_client():
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="allow")
+
+
+settings = Settings()
+
+
+def create_reddit_client() -> praw.Reddit:
     return praw.Reddit(
-        client_id=raggy.settings.reddit_client_id,
-        client_secret=raggy.settings.reddit_client_secret,
+        client_id=getattr(settings, "reddit_client_id"),
+        client_secret=getattr(settings, "reddit_client_secret"),
         user_agent="testscript by /u/_n80n8",
     )
 

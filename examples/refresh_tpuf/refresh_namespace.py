@@ -1,6 +1,5 @@
 from datetime import timedelta
 
-import httpx
 from bs4 import BeautifulSoup
 from prefect import flow, task
 from prefect.tasks import task_input_hash
@@ -9,6 +8,7 @@ from prefect.utilities.annotations import quote
 import raggy
 from raggy.documents import Document
 from raggy.loaders.base import Loader
+from raggy.loaders.github import GitHubRepoLoader
 from raggy.loaders.web import SitemapLoader
 from raggy.vectorstores.tpuf import TurboPuffer
 
@@ -16,48 +16,31 @@ from raggy.vectorstores.tpuf import TurboPuffer
 def html_parser(html: str) -> str:
     import trafilatura
 
-    trafilatura_config = trafilatura.settings.use_config()
+    trafilatura_config = trafilatura.settings.use_config()  # type: ignore
     # disable signal, so it can run in a worker thread
     # https://github.com/adbar/trafilatura/issues/202
     trafilatura_config.set("DEFAULT", "EXTRACTION_TIMEOUT", "0")
-    return trafilatura.extract(html, config=trafilatura_config)
+    return (
+        trafilatura.extract(html, config=trafilatura_config)
+        or BeautifulSoup(html, "html.parser").get_text()
+    )
 
 
 raggy.settings.html_parser = html_parser
 
-links = [
-    item.a["href"]
-    for item in BeautifulSoup(
-        httpx.get("https://docs.prefect.io/latest/integrations/").text, "html.parser"
-    ).select("div.collection-item")
-]
 
-IGNORE_COLLECTIONS = {
-    "census",
-    "firebolt",
-    "prefect-github",
-    "hightouch",
-    "hex",
-    "monday",
-    "monte-carlo",
-    "openai",
-    "openmetadata",
-}
-
-prefect_website_loaders = [
+prefect_loaders = [
     SitemapLoader(
         urls=[
-            url + "sitemap.xml"
-            for url in links
-            if "prefecthq.github.io" in url
-            and not any(collection in url for collection in IGNORE_COLLECTIONS)
-        ]
-        + [
-            "https://docs.prefect.io/latest/sitemap.xml",
-            "https://www.prefect.io/sitemap.xml",
+            "https://docs-3.prefect.io/sitemap.xml",
+            "https://prefect.io/sitemap.xml",
         ],
-        exclude=["api-ref", "/events/"],
-    )
+        exclude=["api-ref", "www.prefect.io/events"],
+    ),
+    GitHubRepoLoader(
+        repo="PrefectHQ/prefect",
+        include_globs=["flows/"],
+    ),
 ]
 
 
@@ -68,7 +51,7 @@ prefect_website_loaders = [
     cache_expiration=timedelta(days=1),
     task_run_name="Run {loader.__class__.__name__}",
     persist_result=True,
-    refresh_cache=True,
+    # refresh_cache=True,
 )
 async def run_loader(loader: Loader) -> list[Document]:
     return await loader.load()
@@ -77,10 +60,10 @@ async def run_loader(loader: Loader) -> list[Document]:
 @flow(name="Update Knowledge", log_prints=True)
 async def refresh_tpuf_namespace(namespace: str = "testing", reset: bool = False):
     """Flow updating vectorstore with info from the Prefect community."""
-    documents = [
+    documents: list[Document] = [
         doc
-        for future in await run_loader.map(quote(prefect_website_loaders))
-        for doc in await future.result()
+        for future in run_loader.map(quote(prefect_loaders))  # type: ignore
+        for doc in future.result()
     ]
 
     print(f"Loaded {len(documents)} documents from the Prefect community.")
@@ -98,4 +81,4 @@ async def refresh_tpuf_namespace(namespace: str = "testing", reset: bool = False
 if __name__ == "__main__":
     import asyncio
 
-    asyncio.run(refresh_tpuf_namespace(namespace="marvin-slackbot", reset=True))
+    asyncio.run(refresh_tpuf_namespace(namespace="prefect-3", reset=True))  # type: ignore

@@ -88,13 +88,14 @@ class TurboPuffer(Vectorstore):
             ids = [document.id for document in documents]
             vectors = await create_openai_embeddings(
                 [document.text for document in documents]
-            )
+            )  # type: ignore
+            if not isinstance(vectors[0], list):  # type: ignore
+                vectors = [vectors]  # type: ignore
             if attributes.get("text"):
                 raise ValueError(
                     "The `text` attribute is reserved and cannot be used as a custom attribute."
                 )
             attributes |= {"text": [document.text for document in documents]}
-
         await run_sync_in_worker_thread(
             self.ns.upsert, ids=ids, vectors=vectors, attributes=attributes
         )

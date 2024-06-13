@@ -1,4 +1,5 @@
 """Loaders for GitHub."""
+
 import asyncio
 import functools
 import os
@@ -223,7 +224,7 @@ class GitHubRepoLoader(Loader):
                 documents = []
 
                 for file in multi_glob(tmp_dir, self.include_globs, self.exclude_globs):
-                    self.logger.debug(f"Loading file: {file!r}")
+                    self.logger.info(f"Loading file: {file!r}")
 
                     metadata = dict(
                         source=self.source_type,
