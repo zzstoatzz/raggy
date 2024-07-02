@@ -15,7 +15,6 @@ keywords = ["scraping", "nlp", "ai", "document-processing"]
 requires-python = ">=3.10"
 dependencies = [
     "aiofiles",
-    "anyio<4.0.0",
     "bs4",
     "chardet",
     "fake-useragent",
@@ -86,11 +85,7 @@ asyncio_mode = 'auto'
 filterwarnings = [
     "ignore:'crypt' is deprecated and slated for removal in Python 3.13:DeprecationWarning",
 ]
-env = [
-    'D:RAGGY_LOG_VERBOSE=1',
-    'D:RAGGY_LOG_LEVEL=DEBUG',
-    'PYTEST_TIMEOUT=20',
-]
+env = ['D:RAGGY_LOG_VERBOSE=1', 'D:RAGGY_LOG_LEVEL=DEBUG', 'PYTEST_TIMEOUT=20']
 
 [tool.ruff]
 extend-select = ["I"]

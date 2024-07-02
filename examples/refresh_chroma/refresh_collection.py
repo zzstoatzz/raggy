@@ -16,14 +16,7 @@ from raggy.vectorstores.chroma import Chroma
 def html_parser(html: str) -> str:
     import trafilatura
 
-    trafilatura_config = trafilatura.settings.use_config()
-    # disable signal, so it can run in a worker thread
-    # https://github.com/adbar/trafilatura/issues/202
-    trafilatura_config.set("DEFAULT", "EXTRACTION_TIMEOUT", "0")
-    return (
-        trafilatura.extract(html, config=trafilatura_config)
-        or BeautifulSoup(html, "html.parser").get_text()
-    )
+    return trafilatura.extract(html) or BeautifulSoup(html, "html.parser").get_text()
 
 
 raggy.settings.html_parser = html_parser
