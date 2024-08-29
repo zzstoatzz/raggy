@@ -38,10 +38,6 @@ class Document(BaseModel):
     tokens: int | None = Field(default=None)
     keywords: list[str] = Field(default_factory=list)
 
-    @property
-    def hash(self):
-        return hash_text(self.text)
-
     @model_validator(mode="after")
     def validate_tokens(self):
         if self.tokens is None:
@@ -49,7 +45,8 @@ class Document(BaseModel):
         return self
 
     def __hash__(self) -> int:
-        return hash(self.hash)
+        """thanks claude shannon"""
+        return int(hash_text(self.text), 16)
 
 
 EXCERPT_TEMPLATE = jinja_env.from_string(
