@@ -69,7 +69,7 @@ async def refresh_chroma(
             await chroma.reset_collection()
             docs = await chroma.add(documents)
         elif mode == "upsert":
-            docs = await chroma.upsert(documents)
+            docs = await task(chroma.upsert)(documents)
         else:
             raise ValueError(f"Unknown mode: {mode!r} (expected 'upsert' or 'reset')")
 

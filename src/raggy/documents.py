@@ -130,4 +130,4 @@ async def _create_excerpt(
 
 def get_distinct_documents(documents: Iterable["Document"]) -> Iterable["Document"]:
     """Return a list of distinct documents."""
-    return distinct(documents, key=lambda doc: doc.hash)
+    return distinct(documents, key=lambda doc: hash(doc.text))
