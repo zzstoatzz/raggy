@@ -1,6 +1,6 @@
 import asyncio
 import re
-from typing import Self
+from typing import Callable, Self
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -148,12 +148,16 @@ class SitemapLoader(URLLoader):
     exclude: list[str | re.Pattern] = Field(default_factory=list)
     url_loader: URLLoader = Field(default_factory=HTMLLoader)
 
+    url_processor: Callable[[str], str] = lambda x: x  # noqa: E731
+
     async def _get_loader(self: Self) -> MultiLoader:
         urls = await asyncio.gather(*[self.load_sitemap(url) for url in self.urls])
         return MultiLoader(
             loaders=[
                 type(self.url_loader)(urls=url_batch, headers=await self.get_headers())  # type: ignore
-                for url_batch in batched([u for url_list in urls for u in url_list], 10)
+                for url_batch in batched(
+                    [self.url_processor(u) for url_list in urls for u in url_list], 10
+                )
             ]
         )
 

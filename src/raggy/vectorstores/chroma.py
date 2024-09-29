@@ -2,7 +2,8 @@ import re
 from typing import Iterable, Literal
 
 try:
-    from chromadb import Client, HttpClient
+    from chromadb import Client, CloudClient, HttpClient
+    from chromadb.api import ClientAPI
     from chromadb.api.models.Collection import Collection
     from chromadb.api.types import Include, QueryResult
 except ImportError:
@@ -12,17 +13,26 @@ except ImportError:
     )
 
 from raggy.documents import Document, get_distinct_documents
+from raggy.settings import settings
 from raggy.utilities.asyncutils import run_sync_in_worker_thread
 from raggy.utilities.embeddings import create_openai_embeddings
 from raggy.utilities.text import slice_tokens
 from raggy.vectorstores.base import Vectorstore
 
+ChromaClientType = Literal["base", "http", "cloud"]
 
-def get_client(client_type: Literal["base", "http"]) -> HttpClient:
+
+def get_client(client_type: ChromaClientType) -> ClientAPI:
     if client_type == "base":
         return Client()
     elif client_type == "http":
         return HttpClient()
+    elif client_type == "cloud":
+        return CloudClient(
+            tenant=settings.chroma.cloud_tenant,
+            database=settings.chroma.cloud_database,
+            api_key=settings.chroma.cloud_api_key.get_secret_value(),
+        )
     else:
         raise ValueError(f"Unknown client type: {client_type}")
 
@@ -46,7 +56,7 @@ class Chroma(Vectorstore):
 
     """
 
-    client_type: Literal["base", "http"] = "base"
+    client_type: ChromaClientType = "base"
     collection_name: str = "raggy"
 
     @property
@@ -141,7 +151,7 @@ class Chroma(Vectorstore):
             await run_sync_in_worker_thread(
                 client.delete_collection, self.collection_name
             )
-        except ValueError:
+        except Exception:
             self.logger.warning_kv(
                 "Collection not found",
                 f"Creating a new collection {self.collection_name!r}",

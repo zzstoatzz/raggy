@@ -31,8 +31,9 @@ raggy.settings.html_parser = html_parser
 
 prefect_loaders = [
     SitemapLoader(
+        url_processor=lambda x: x.replace("docs.", "docs-2."),
         urls=[
-            "https://docs-3.prefect.io/sitemap.xml",
+            "https://docs-2.prefect.io/sitemap.xml",
             "https://prefect.io/sitemap.xml",
         ],
         exclude=["api-ref", "www.prefect.io/events"],
@@ -81,4 +82,4 @@ async def refresh_tpuf_namespace(namespace: str = "testing", reset: bool = False
 if __name__ == "__main__":
     import asyncio
 
-    asyncio.run(refresh_tpuf_namespace(namespace="prefect-3", reset=True))  # type: ignore
+    asyncio.run(refresh_tpuf_namespace(namespace="prefect-2", reset=True))  # type: ignore
