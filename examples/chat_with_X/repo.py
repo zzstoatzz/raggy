@@ -34,7 +34,6 @@ async def upsert_documents(documents: list[Document]):
 
 @flow(flow_run_name="{repo}")
 async def ingest_repo(repo: str):
-    """repo should be in the format 'owner/repo'"""
     documents = await gather_documents(repo)
     await upsert_documents(documents)
 
@@ -69,4 +68,6 @@ async def chat_with_repo(initial_message: str | None = None, clean_up: bool = Tr
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=UserWarning)
-    run_coro_as_sync(chat_with_repo("lets chat about zzstoatzz/prefect-bot"))
+    run_coro_as_sync(
+        chat_with_repo("lets chat about zzstoatzz/prefect-bot - please ingest it")
+    )

@@ -1,18 +1,23 @@
+import asyncio
 import re
-from typing import Iterable, Literal
+from typing import Literal
+
+from raggy.utilities.collections import distinct
 
 try:
     from chromadb import Client, CloudClient, HttpClient
     from chromadb.api import ClientAPI
     from chromadb.api.models.Collection import Collection
-    from chromadb.api.types import Include, QueryResult
+    from chromadb.api.models.Collection import Document as ChromaDocument
+    from chromadb.api.types import QueryResult
+    from chromadb.utils.batch_utils import create_batches
 except ImportError:
     raise ImportError(
         "You must have `chromadb` installed to use the Chroma vector store. "
         "Install it with `pip install 'raggy[chroma]'`."
     )
 
-from raggy.documents import Document, get_distinct_documents
+from raggy.documents import Document as RaggyDocument
 from raggy.settings import settings
 from raggy.utilities.asyncutils import run_sync_in_worker_thread
 from raggy.utilities.embeddings import create_openai_embeddings
@@ -69,7 +74,7 @@ class Chroma(Vectorstore):
         self,
         ids: list[str] | None = None,
         where: dict | None = None,
-        where_document: Document | None = None,
+        where_document: ChromaDocument | None = None,
     ):
         await run_sync_in_worker_thread(
             self.collection.delete,
@@ -78,27 +83,36 @@ class Chroma(Vectorstore):
             where_document=where_document,
         )
 
-    async def add(self, documents: list[Document]) -> Iterable[Document]:
-        documents = list(get_distinct_documents(documents))
-        kwargs = dict(
-            ids=[document.id for document in documents],
-            documents=[document.text for document in documents],
-            metadatas=[
-                document.metadata.model_dump(exclude_none=True) or None
-                for document in documents
-            ],
-            embeddings=await create_openai_embeddings(
-                [document.text for document in documents]
-            ),
+    async def add(self, documents: list[RaggyDocument]) -> list[ChromaDocument]:
+        unique_documents = list(distinct(documents, key=lambda doc: doc.text))
+
+        ids = [doc.id for doc in unique_documents]
+        texts = [doc.text for doc in unique_documents]
+        metadatas = [
+            doc.metadata.model_dump(exclude_none=True) for doc in unique_documents
+        ]
+
+        embeddings = await create_openai_embeddings(texts)
+
+        data = {
+            "ids": ids,
+            "documents": texts,
+            "metadatas": metadatas,
+            "embeddings": embeddings,
+        }
+
+        batched_data: list[tuple] = create_batches(
+            get_client(self.client_type),
+            **data,
         )
 
-        await run_sync_in_worker_thread(self.collection.add, **kwargs)
-
-        get_result = await run_sync_in_worker_thread(
-            self.collection.get, ids=kwargs["ids"]
+        await asyncio.gather(
+            *(asyncio.to_thread(self.collection.add, *batch) for batch in batched_data)
         )
 
-        return get_result.get("documents")
+        get_result = await asyncio.to_thread(self.collection.get, ids=ids)
+
+        return get_result.get("documents") or []
 
     async def query(
         self,
@@ -107,7 +121,7 @@ class Chroma(Vectorstore):
         n_results: int = 10,
         where: dict | None = None,
         where_document: dict | None = None,
-        include: "Include" = ["metadatas"],
+        include: list[str] = ["metadatas"],
         **kwargs,
     ) -> "QueryResult":
         return await run_sync_in_worker_thread(
@@ -124,8 +138,8 @@ class Chroma(Vectorstore):
     async def count(self) -> int:
         return await run_sync_in_worker_thread(self.collection.count)
 
-    async def upsert(self, documents: list[Document]):
-        documents = list(get_distinct_documents(documents))
+    async def upsert(self, documents: list[RaggyDocument]) -> list[ChromaDocument]:
+        documents = list(distinct(documents, key=lambda doc: hash(doc.text)))
         kwargs = dict(
             ids=[document.id for document in documents],
             documents=[document.text for document in documents],
@@ -143,7 +157,7 @@ class Chroma(Vectorstore):
             self.collection.get, ids=kwargs["ids"]
         )
 
-        return get_result.get("documents")
+        return get_result.get("documents") or []
 
     async def reset_collection(self):
         client = get_client(self.client_type)
@@ -160,7 +174,7 @@ class Chroma(Vectorstore):
 
     def ok(self) -> bool:
         try:
-            version = self.client.get_version()
+            version = get_client(self.client_type).get_version()
         except Exception as e:
             self.logger.error_kv("Connection error", f"Cannot connect to Chroma: {e}")
         if re.match(r"^\d+\.\d+\.\d+$", version):
@@ -177,6 +191,7 @@ async def query_collection(
     where: dict | None = None,
     where_document: dict | None = None,
     max_tokens: int = 500,
+    client_type: ChromaClientType = "base",
 ) -> str:
     """Query a Chroma collection.
 
@@ -194,7 +209,9 @@ async def query_collection(
         print(await query_collection("How to create a flow in Prefect?"))
         ```
     """
-    async with Chroma(collection_name=collection_name) as chroma:
+    async with Chroma(
+        collection_name=collection_name, client_type=client_type
+    ) as chroma:
         query_embedding = query_embedding or await create_openai_embeddings(query_text)
 
         query_result = await chroma.query(
@@ -205,8 +222,8 @@ async def query_collection(
             include=["documents"],
         )
 
-        concatenated_result = "\n".join(
-            doc for doc in query_result.get("documents", [])
-        )
+        assert (
+            result := query_result.get("documents")
+        ) is not None, "No documents found"
 
-        return slice_tokens(concatenated_result, max_tokens)
+        return slice_tokens("\n".join(result[0]), max_tokens)

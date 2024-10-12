@@ -1,12 +1,11 @@
 import asyncio
 import inspect
 from functools import partial
-from typing import Annotated, Iterable
+from typing import Annotated
 
 from jinja2 import Environment, Template
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from raggy.utilities.collections import distinct
 from raggy.utilities.ids import generate_prefixed_uuid
 from raggy.utilities.text import count_tokens, extract_keywords, hash_text, split_text
 
@@ -39,7 +38,7 @@ class Document(BaseModel):
     keywords: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_tokens(self):
+    def ensure_tokens(self):
         if self.tokens is None:
             self.tokens = count_tokens(self.text)
         return self
@@ -51,7 +50,7 @@ class Document(BaseModel):
 
 EXCERPT_TEMPLATE = jinja_env.from_string(
     inspect.cleandoc(
-        """The following is an excerpt from a document
+        """This is an excerpt from a document
         {% if document.metadata %}\n\n# Document metadata
         {{ document.metadata }}
         {% endif %}
@@ -126,8 +125,3 @@ async def _create_excerpt(
         metadata=document.metadata if document.metadata else {},
         tokens=count_tokens(excerpt_text),
     )
-
-
-def get_distinct_documents(documents: Iterable["Document"]) -> Iterable["Document"]:
-    """Return a list of distinct documents."""
-    return distinct(documents, key=lambda doc: hash(doc.text))

@@ -1,3 +1,3 @@
 chromadb
-git+https://github.com/prefecthq/prefect.git@main
+prefect
 trafilatura

@@ -1,8 +1,28 @@
+from typing import overload
+
 from openai import APIConnectionError, AsyncOpenAI
 from openai.types import CreateEmbeddingResponse
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 import raggy
+
+
+@overload
+async def create_openai_embeddings(
+    input_: str,
+    timeout: int = 60,
+    model: str = raggy.settings.openai_embeddings_model,
+) -> list[float]:
+    ...
+
+
+@overload
+async def create_openai_embeddings(
+    input_: list[str],
+    timeout: int = 60,
+    model: str = raggy.settings.openai_embeddings_model,
+) -> list[list[float]]:
+    ...
 
 
 @retry(
