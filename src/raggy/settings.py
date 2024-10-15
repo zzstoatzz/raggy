@@ -44,7 +44,8 @@ class ChromaSettings(BaseSettings):
         default="default",
         description="The database to use for the Chroma Cloud client.",
     )
-    cloud_api_key: SecretStr = Field(
+    cloud_api_key: SecretStr | None = Field(
+        default=None,
         description="The API key to use for the Chroma Cloud client.",
     )
 

@@ -33,6 +33,7 @@ def get_client(client_type: ChromaClientType) -> ClientAPI:
     elif client_type == "http":
         return HttpClient()
     elif client_type == "cloud":
+        assert settings.chroma.cloud_api_key is not None
         return CloudClient(
             tenant=settings.chroma.cloud_tenant,
             database=settings.chroma.cloud_database,
