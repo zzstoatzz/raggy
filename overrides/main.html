@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block announce %}
+  <style>
+    .md-announce {
+      font-family: 'Roboto Mono', monospace;
+      background-color: var(--md-primary-fg-color);
+    }
+    .md-announce__inner {
+      margin: 0 auto;
+      padding: 0.2rem;
+      text-align: center;
+      font-weight: 300;
+      letter-spacing: 0.05em;
+    }
+  </style>
+  <a href="{{ config.extra.announcement.link }}" style="color: currentColor">
+    {{ config.extra.announcement.text }}
+  </a>
+{% endblock %} 
