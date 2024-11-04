@@ -1,26 +1,17 @@
-import asyncio
-import re
-from typing import Literal
+from typing import Literal, Sequence
 
-from raggy.utilities.collections import distinct
-
-try:
-    from chromadb import Client, CloudClient, HttpClient
-    from chromadb.api import ClientAPI
-    from chromadb.api.models.Collection import Collection
-    from chromadb.api.models.Collection import Document as ChromaDocument
-    from chromadb.api.types import QueryResult
-    from chromadb.utils.batch_utils import create_batches
-except ImportError:
-    raise ImportError(
-        "You must have `chromadb` installed to use the Chroma vector store. "
-        "Install it with `pip install 'raggy[chroma]'`."
-    )
+from chromadb import Client, CloudClient, HttpClient
+from chromadb.api import ClientAPI
+from chromadb.api.models.Collection import Collection
+from chromadb.api.models.Collection import Document as ChromaDocument
+from chromadb.api.types import Embedding, OneOrMany, PyEmbedding, QueryResult
+from chromadb.utils.batch_utils import create_batches
+from prefect.utilities.asyncutils import run_coro_as_sync
 
 from raggy.documents import Document as RaggyDocument
 from raggy.documents import DocumentMetadata
 from raggy.settings import settings
-from raggy.utilities.asyncutils import run_sync_in_worker_thread
+from raggy.utilities.asyncutils import run_concurrent_tasks
 from raggy.utilities.embeddings import create_openai_embeddings
 from raggy.utilities.text import slice_tokens
 from raggy.vectorstores.base import Vectorstore
@@ -45,23 +36,7 @@ def get_client(client_type: ChromaClientType) -> ClientAPI:
 
 
 class Chroma(Vectorstore):
-    """A wrapper for chromadb.Client - used as an async context manager.
-
-    Attributes:
-        client_type: The type of client to use. Must be one of "base" or "http".
-        collection_name: The name of the collection to use.
-
-    Example:
-        Query a collection:
-        ```python
-        from raggy.vectorstores.chroma import Chroma
-
-        async with Chroma(collection_name="my-collection") as chroma:
-            result = await chroma.query(query_texts=["Hello, world!"])
-            print(result)
-        ```
-
-    """
+    """A wrapper for chromadb.Client."""
 
     client_type: ChromaClientType = "base"
     collection_name: str = "raggy"
@@ -72,32 +47,29 @@ class Chroma(Vectorstore):
             name=self.collection_name
         )
 
-    async def delete(
+    def delete(
         self,
         ids: list[str] | None = None,
         where: dict | None = None,
         where_document: ChromaDocument | None = None,
     ):
-        await run_sync_in_worker_thread(
-            self.collection.delete,
+        self.collection.delete(
             ids=ids,
             where=where,
             where_document=where_document,
         )
 
-    async def add(self, documents: list[RaggyDocument]) -> list[ChromaDocument]:
-        unique_documents = list(distinct(documents, key=lambda doc: doc.text))
-
-        ids = [doc.id for doc in unique_documents]
-        texts = [doc.text for doc in unique_documents]
+    def add(self, documents: Sequence[RaggyDocument]) -> list[ChromaDocument]:
+        ids = [doc.id for doc in documents]
+        texts = [doc.text for doc in documents]
         metadatas = [
             doc.metadata.model_dump(exclude_none=True)
             if isinstance(doc.metadata, DocumentMetadata)
             else None
-            for doc in unique_documents
+            for doc in documents
         ]
 
-        embeddings = await create_openai_embeddings(texts)
+        embeddings = run_coro_as_sync(create_openai_embeddings(texts))
 
         data = {
             "ids": ids,
@@ -111,27 +83,28 @@ class Chroma(Vectorstore):
             **data,
         )
 
-        await asyncio.gather(
-            *(asyncio.to_thread(self.collection.add, *batch) for batch in batched_data)
-        )
+        for batch in batched_data:
+            self.collection.add(*batch)
 
-        get_result = await asyncio.to_thread(self.collection.get, ids=ids)
-
+        get_result = self.collection.get(ids=ids)
         return get_result.get("documents") or []
 
-    async def query(
+    def query(
         self,
-        query_embeddings: list[list[float]] | None = None,
+        query_embeddings: OneOrMany[Embedding] | OneOrMany[PyEmbedding] | None = None,
         query_texts: list[str] | None = None,
         n_results: int = 10,
         where: dict | None = None,
         where_document: dict | None = None,
         include: list[str] = ["metadatas"],
         **kwargs,
-    ) -> "QueryResult":
-        return await run_sync_in_worker_thread(
-            self.collection.query,
-            query_embeddings=query_embeddings,
+    ) -> QueryResult:
+        return self.collection.query(
+            query_embeddings=(
+                run_coro_as_sync(create_openai_embeddings(query_texts))
+                if query_texts and not query_embeddings
+                else query_embeddings
+            ),
             query_texts=query_texts,
             n_results=n_results,
             where=where,
@@ -140,11 +113,10 @@ class Chroma(Vectorstore):
             **kwargs,
         )
 
-    async def count(self) -> int:
-        return await run_sync_in_worker_thread(self.collection.count)
+    def count(self) -> int:
+        return self.collection.count()
 
-    async def upsert(self, documents: list[RaggyDocument]) -> list[ChromaDocument]:
-        documents = list(distinct(documents, key=lambda doc: hash(doc.text)))
+    def upsert(self, documents: Sequence[RaggyDocument]) -> list[ChromaDocument]:
         kwargs = dict(
             ids=[document.id for document in documents],
             documents=[document.text for document in documents],
@@ -154,45 +126,81 @@ class Chroma(Vectorstore):
                 else None
                 for document in documents
             ],
-            embeddings=await create_openai_embeddings(
-                [document.text for document in documents]
+            embeddings=run_coro_as_sync(
+                create_openai_embeddings([document.text for document in documents])
             ),
         )
-        await run_sync_in_worker_thread(self.collection.upsert, **kwargs)
+        self.collection.upsert(**kwargs)
 
-        get_result = await run_sync_in_worker_thread(
-            self.collection.get, ids=kwargs["ids"]
-        )
-
+        get_result = self.collection.get(ids=kwargs["ids"])
         return get_result.get("documents") or []
 
-    async def reset_collection(self):
+    def reset_collection(self):
         client = get_client(self.client_type)
         try:
-            await run_sync_in_worker_thread(
-                client.delete_collection, self.collection_name
-            )
+            client.delete_collection(self.collection_name)
         except Exception:
             self.logger.warning_kv(
                 "Collection not found",
                 f"Creating a new collection {self.collection_name!r}",
             )
-        await run_sync_in_worker_thread(client.create_collection, self.collection_name)
+        client.create_collection(self.collection_name)
 
     def ok(self) -> bool:
         try:
             version = get_client(self.client_type).get_version()
-        except Exception as e:
-            self.logger.error_kv("Connection error", f"Cannot connect to Chroma: {e}")
-        if re.match(r"^\d+\.\d+\.\d+$", version):
             self.logger.debug_kv("OK", f"Connected to Chroma {version!r}")
             return True
-        return False
+        except Exception as e:
+            self.logger.error_kv("Connection error", f"Cannot connect to Chroma: {e}")
+            return False
+
+    async def upsert_batched(
+        self,
+        documents: Sequence[RaggyDocument],
+        batch_size: int = 100,
+        max_concurrent: int = 8,
+    ):
+        """Upsert documents in batches concurrently."""
+        document_list = list(documents)
+        batches = [
+            document_list[i : i + batch_size]
+            for i in range(0, len(document_list), batch_size)
+        ]
+
+        # Create tasks that will run concurrently
+        tasks = []
+        for i, batch in enumerate(batches):
+
+            async def _upsert(b=batch, n=i):
+                # Get embeddings for the entire batch at once
+                texts = [doc.text for doc in b]
+                embeddings = await create_openai_embeddings(texts)
+
+                # Prepare the batch data
+                kwargs = dict(
+                    ids=[doc.id for doc in b],
+                    documents=texts,
+                    metadatas=[
+                        doc.metadata.model_dump(exclude_none=True)
+                        if isinstance(doc.metadata, DocumentMetadata)
+                        else None
+                        for doc in b
+                    ],
+                    embeddings=embeddings,
+                )
+
+                # Do the upsert
+                self.collection.upsert(**kwargs)
+                print(f"Upserted batch {n + 1}/{len(batches)} ({len(b)} documents)")
+
+            tasks.append(_upsert)
+
+        await run_concurrent_tasks(tasks, max_concurrent=max_concurrent)
 
 
-async def query_collection(
+def query_collection(
     query_text: str,
-    query_embedding: list[float] | None = None,
     collection_name: str = "raggy",
     top_k: int = 10,
     where: dict | None = None,
@@ -200,29 +208,10 @@ async def query_collection(
     max_tokens: int = 500,
     client_type: ChromaClientType = "base",
 ) -> str:
-    """Query a Chroma collection.
-
-    Args:
-        query_text: The text to query for.
-        filters: Filters to apply to the query.
-        collection: The collection to query.
-        top_k: The number of results to return.
-
-    Example:
-        Basic query of a collection:
-        ```python
-        from raggy.vectorstores.chroma import query_collection
-
-        print(await query_collection("How to create a flow in Prefect?"))
-        ```
-    """
-    async with Chroma(
-        collection_name=collection_name, client_type=client_type
-    ) as chroma:
-        query_embedding = query_embedding or await create_openai_embeddings(query_text)
-
-        query_result = await chroma.query(
-            query_embeddings=[query_embedding],
+    """Query a Chroma collection."""
+    with Chroma(collection_name=collection_name, client_type=client_type) as chroma:
+        query_result = chroma.query(
+            query_texts=[query_text],
             n_results=top_k,
             where=where,
             where_document=where_document,
@@ -232,5 +221,4 @@ async def query_collection(
         assert (
             result := query_result.get("documents")
         ) is not None, "No documents found"
-
         return slice_tokens("\n".join(result[0]), max_tokens)

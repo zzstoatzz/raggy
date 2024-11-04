@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - v*
+    branches:
+      - main
+    paths:
+      - "docs/**"
   workflow_dispatch:
 
 permissions:
@@ -31,4 +35,4 @@ jobs:
           cairosvg
 
       - name: Publish docs
-        run: mkdocs gh-deploy --force 
+        run: mkdocs gh-deploy --force

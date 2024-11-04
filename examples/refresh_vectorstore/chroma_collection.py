@@ -1,8 +1,10 @@
 # /// script
 # dependencies = [
-#   "raggy[chroma]",
-#   "trafilatura",
+#     "prefect",
+#     "raggy[chroma]",
+#     "trafilatura",
 # ]
+# ///
 
 from datetime import timedelta
 from typing import Literal
@@ -51,26 +53,26 @@ prefect_loaders = [
     cache_expiration=timedelta(days=1),
     task_run_name="Run {loader.__class__.__name__}",
     persist_result=True,
-    refresh_cache=True,
+    # refresh_cache=True,
 )
 async def run_loader(loader: Loader) -> list[Document]:
     return await loader.load()
 
 
 @task
-async def add_documents(
+def add_documents(
     chroma: Chroma, documents: list[Document], mode: Literal["upsert", "reset"]
 ) -> list[ChromaDocument]:
     if mode == "reset":
-        await chroma.reset_collection()
-        docs = await chroma.add(documents)
+        chroma.reset_collection()
+        docs = chroma.add(documents)
     elif mode == "upsert":
-        docs = await chroma.upsert(documents)
+        docs = chroma.upsert(documents)
     return docs
 
 
 @flow(name="Update Knowledge", log_prints=True)
-async def refresh_chroma(
+def refresh_chroma(
     collection_name: str = "default",
     chroma_client_type: ChromaClientType = "base",
     mode: Literal["upsert", "reset"] = "upsert",
@@ -84,17 +86,13 @@ async def refresh_chroma(
 
     print(f"Loaded {len(documents)} documents from the Prefect community.")
 
-    async with Chroma(
+    with Chroma(
         collection_name=collection_name, client_type=chroma_client_type
     ) as chroma:
-        docs = await add_documents(chroma, documents, mode)
+        docs = add_documents(chroma, documents, mode)
 
         print(f"Added {len(docs)} documents to the {collection_name} collection.")  # type: ignore
 
 
 if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(
-        refresh_chroma(collection_name="test", chroma_client_type="cloud", mode="reset")  # type: ignore
-    )
+    refresh_chroma(collection_name="test", chroma_client_type="cloud", mode="reset")

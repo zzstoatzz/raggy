@@ -16,21 +16,45 @@ print(documents[0])
 
 ## Adding documents to a vectorstore
 
-```python
-from raggy.vectorstores.tpuf import Turbopuffer
+!!! note "New in 0.2.0"
+Vectorstore operations are now synchronous by default, with async batching available via `upsert_batched`.
 
-async with Turbopuffer() as vectorstore: # uses default `raggy` namespace
-    await vectorstore.upsert(documents)
+```python
+from raggy.vectorstores.tpuf import TurboPuffer
+
+# Sync usage
+with TurboPuffer() as vectorstore:  # uses default `raggy` namespace
+    vectorstore.upsert(documents)
+
+# Async batched usage for large document sets
+async with TurboPuffer() as vectorstore:
+    await vectorstore.upsert_batched(
+        documents,
+        batch_size=100,
+        max_concurrent=8
+    )
 ```
 
 ## Querying the vectorstore
 
 ```python
-from raggy.vectorstores.tpuf import query_namespace
+from raggy.vectorstores.tpuf import query_namespace, multi_query_tpuf
 
-print(await query_namespace("how do I get started with raggy?"))
+# Single query
+result = query_namespace("how do I get started with raggy?")
+print(result)
+
+# Multiple related queries for better coverage
+result = multi_query_tpuf([
+    "how to install raggy",
+    "basic raggy usage",
+    "raggy getting started"
+])
+print(result)
 ```
 
-## Real-world example
+## Real-world examples
 
-See [this example](https://github.com/zzstoatzz/raggy/blob/main/examples/refresh_vectorstore/refresh_tpuf.py) I use to refresh a chatbot that knows about `prefect`.
+- [Chat with a GitHub repo](https://github.com/zzstoatzz/raggy/blob/main/examples/chat_with_X/repo.py)
+- [Chat with a website](https://github.com/zzstoatzz/raggy/blob/main/examples/chat_with_X/website.py)
+- [Refresh a vectorstore](https://github.com/zzstoatzz/raggy/blob/main/examples/refresh_vectorstore/tpuf_namespace.py)

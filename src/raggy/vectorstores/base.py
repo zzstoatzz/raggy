@@ -6,10 +6,10 @@ from raggy.utilities.logging import RaggyLogger, get_logger
 class Vectorstore(BaseModel):
     """Base class for vectorstores.
 
-    Allows for easy logging and async context management.
+    Allows for easy logging and context management.
 
     Attributes:
-        _in_context: Whether the vectorstore is currently in an async context.
+        _in_context: Whether the vectorstore is currently in a context.
 
     Example:
         Basic Usage of `Vectorstore`
@@ -19,7 +19,7 @@ class Vectorstore(BaseModel):
         class MyVectorstore(Vectorstore):
             pass
 
-        async with MyVectorstore() as vectorstore:
+        with MyVectorstore() as vectorstore:
             ...
         ```
     """
@@ -32,9 +32,9 @@ class Vectorstore(BaseModel):
     def logger(self) -> RaggyLogger:
         return get_logger(self.__class__.__name__)
 
-    async def __aenter__(self):
+    def __enter__(self):
         self._in_context = True
         return self
 
-    async def __aexit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback):
         self._in_context = False
