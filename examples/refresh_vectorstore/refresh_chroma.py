@@ -1,3 +1,9 @@
+# /// script
+# dependencies = [
+#   "raggy[chroma]",
+#   "trafilatura",
+# ]
+
 from datetime import timedelta
 from typing import Literal
 

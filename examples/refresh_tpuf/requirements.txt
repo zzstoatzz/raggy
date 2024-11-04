@@ -1,3 +1,0 @@
-prefect@git+https://github.com/PrefectHQ/prefect.git
-trafilatura
-turbopuffer
