@@ -33,5 +33,4 @@ print(await query_namespace("how do I get started with raggy?"))
 
 ## Real-world example
 
-See [this example](https://github.com/zzstoatzz/raggy/blob/main/examples/refresh_chroma/refresh_collection.py) I use to refresh a chatbot that knows about `prefect`.
-
+See [this example](https://github.com/zzstoatzz/raggy/blob/main/examples/refresh_vectorstore/refresh_tpuf.py) I use to refresh a chatbot that knows about `prefect`.
