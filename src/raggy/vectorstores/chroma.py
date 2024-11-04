@@ -1,6 +1,6 @@
 from typing import Literal, Sequence
 
-from chromadb import Client, CloudClient, HttpClient
+from chromadb import Client, CloudClient, HttpClient, Include
 from chromadb.api import ClientAPI
 from chromadb.api.models.Collection import Collection
 from chromadb.api.models.Collection import Document as ChromaDocument
@@ -96,7 +96,7 @@ class Chroma(Vectorstore):
         n_results: int = 10,
         where: dict | None = None,
         where_document: dict | None = None,
-        include: list[str] = ["metadatas"],
+        include: Include = ["metadatas"],
         **kwargs,
     ) -> QueryResult:
         return self.collection.query(
