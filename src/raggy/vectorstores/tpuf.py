@@ -177,7 +177,10 @@ class TurboPuffer(Vectorstore):
                     vectors=embeddings,
                     attributes={"text": texts},
                 )
-                print(f"Upserted batch {n + 1}/{len(batches)} ({len(b)} documents)")
+                self.logger.debug_kv(
+                    "Upserted",
+                    f"Batch {n + 1}/{len(batches)} ({len(b)} documents)",
+                )
 
             tasks.append(_upsert)
 

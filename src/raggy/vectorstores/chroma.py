@@ -56,7 +56,7 @@ class Chroma(Vectorstore):
         self.collection.delete(
             ids=ids,
             where=where,
-            where_document=where_document,
+            where_document=where_document,  # type: ignore
         )
 
     def add(self, documents: Sequence[RaggyDocument]) -> list[ChromaDocument]:
@@ -96,7 +96,7 @@ class Chroma(Vectorstore):
         n_results: int = 10,
         where: dict | None = None,
         where_document: dict | None = None,
-        include: Include = ["metadatas"],
+        include: Include = ["metadatas"],  # type: ignore
         **kwargs,
     ) -> QueryResult:
         return self.collection.query(
@@ -130,7 +130,7 @@ class Chroma(Vectorstore):
                 create_openai_embeddings([document.text for document in documents])
             ),
         )
-        self.collection.upsert(**kwargs)
+        self.collection.upsert(**kwargs)  # type: ignore
 
         get_result = self.collection.get(ids=kwargs["ids"])
         return get_result.get("documents") or []
@@ -192,7 +192,10 @@ class Chroma(Vectorstore):
 
                 # Do the upsert
                 self.collection.upsert(**kwargs)
-                print(f"Upserted batch {n + 1}/{len(batches)} ({len(b)} documents)")
+                self.logger.debug_kv(
+                    "Upserted",
+                    f"Batch {n + 1}/{len(batches)} ({len(b)} documents)",
+                )
 
             tasks.append(_upsert)
 
@@ -215,7 +218,7 @@ def query_collection(
             n_results=top_k,
             where=where,
             where_document=where_document,
-            include=["documents"],
+            include=["documents"],  # type: ignore
         )
 
         assert (
