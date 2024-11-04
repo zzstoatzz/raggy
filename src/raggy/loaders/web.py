@@ -159,7 +159,8 @@ class SitemapLoader(URLLoader):
             loaders=[
                 type(self.url_loader)(urls=url_batch, headers=await self.get_headers())  # type: ignore
                 for url_batch in batched(
-                    [self.url_processor(u) for url_list in urls for u in url_list], 10
+                    [self.url_processor(u) for url_list in urls for u in url_list],  # type: ignore
+                    10,
                 )
             ]
         )

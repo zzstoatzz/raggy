@@ -1,11 +1,12 @@
 from functools import partial
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, ParamSpec, TypeVar
 
 import anyio
 from anyio import create_task_group, to_thread
 
 from raggy import settings
 
+P = ParamSpec("P")
 T = TypeVar("T")
 
 RAGGY_THREAD_LIMITER: anyio.CapacityLimiter | None = None
@@ -32,9 +33,9 @@ async def run_sync_in_worker_thread(
 
 
 async def run_concurrent_tasks(
-    tasks: list[Callable],
+    tasks: list[Callable[P, T]],
     max_concurrent: int = settings.max_concurrent_tasks,
-):
+) -> list[T]:
     """Run multiple tasks concurrently with a limit on concurrent execution.
 
     Args:

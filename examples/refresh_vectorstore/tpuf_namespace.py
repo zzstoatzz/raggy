@@ -1,7 +1,7 @@
 # /// script
 # dependencies = [
 #     "prefect",
-#     "raggy[tpuf]@git+https://github.com/zzstoatzz/raggy",
+#     "raggy[tpuf]",
 #     "trafilatura",
 # ]
 # ///
@@ -95,7 +95,7 @@ async def run_loader(loader: Loader) -> list[Document]:
     flow_run_name="Refreshing {namespace}",
     log_prints=True,
 )
-async def refresh_tpuf_namespace(
+def refresh_tpuf_namespace(
     namespace: str,
     namespace_loaders: list[Loader],
     reset: bool = False,
@@ -111,32 +111,29 @@ async def refresh_tpuf_namespace(
 
     print(f"Loaded {len(documents)} documents from the Prefect community.")
 
-    async with TurboPuffer(namespace=namespace) as tpuf:
+    with TurboPuffer(namespace=namespace) as tpuf:
         if reset:
-            await task(tpuf.reset)()
+            task(tpuf.reset)()
             print(f"RESETTING: Deleted all documents from tpuf ns {namespace!r}.")
 
-        await task(tpuf.upsert_batched)(
+        task(tpuf.upsert_batched).submit(
             documents=documents, batch_size=batch_size, max_concurrent=max_concurrent
-        )
+        ).wait()
 
     print(f"Updated tpuf ns {namespace!r} with {len(documents)} documents.")
 
 
 @flow(name="Refresh Namespaces", log_prints=True)
-async def refresh_tpuf(
-    reset: bool = False, batch_size: int = 100, test_mode: bool = False
-):
+def refresh_tpuf(reset: bool = False, batch_size: int = 100, test_mode: bool = False):
     for namespace, namespace_loaders in loaders.items():
         if test_mode:
             namespace = f"TESTING-{namespace}"
-        await refresh_tpuf_namespace(
+        refresh_tpuf_namespace(
             namespace, namespace_loaders, reset=reset, batch_size=batch_size
         )
 
 
 if __name__ == "__main__":
-    import asyncio
     import sys
 
     if len(sys.argv) > 1:
@@ -144,4 +141,4 @@ if __name__ == "__main__":
     else:
         test_mode = True
 
-    asyncio.run(refresh_tpuf(reset=True, test_mode=test_mode))
+    refresh_tpuf(reset=True, test_mode=test_mode)
