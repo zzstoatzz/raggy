@@ -1,7 +1,7 @@
 # /// script
 # dependencies = [
 #     "prefect",
-#     "raggy[tpuf]@git+https://github.com/PrefectHQ/raggy.git@improve-ingest",
+#     "raggy[tpuf]@git+https://github.com/zzstoatzz/raggy@improve-ingest",
 #     "trafilatura",
 # ]
 # ///
