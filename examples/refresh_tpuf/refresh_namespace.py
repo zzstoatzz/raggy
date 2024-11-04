@@ -1,3 +1,11 @@
+# /// script
+# dependencies = [
+#     "prefect",
+#     "raggy[tpuf]@git+https://github.com/zzstoatzz/raggy@improve-ingest",
+#     "trafilatura",
+# ]
+# ///
+
 from datetime import timedelta
 
 from bs4 import BeautifulSoup
@@ -29,20 +37,44 @@ def html_parser(html: str) -> str:
 raggy.settings.html_parser = html_parser
 
 
-prefect_loaders = [
-    SitemapLoader(
-        url_processor=lambda x: x.replace("docs.", "docs-2."),
-        urls=[
-            "https://docs-2.prefect.io/sitemap.xml",
-            "https://prefect.io/sitemap.xml",
-        ],
-        exclude=["api-ref", "www.prefect.io/events"],
-    ),
-    GitHubRepoLoader(
-        repo="PrefectHQ/prefect",
-        include_globs=["flows/"],
-    ),
-]
+loaders = {
+    "prefect-2": [
+        SitemapLoader(
+            url_processor=lambda x: x.replace("docs.", "docs-2."),
+            urls=[
+                "https://docs-2.prefect.io/sitemap.xml",
+                "https://prefect.io/sitemap.xml",
+            ],
+            exclude=["api-ref", "www.prefect.io/events"],
+        ),
+        GitHubRepoLoader(
+            repo="PrefectHQ/prefect",
+            include_globs=["flows/"],
+        ),
+    ],
+    "prefect-3": [
+        SitemapLoader(
+            urls=[
+                "https://docs.prefect.io/sitemap.xml",
+                "https://prefect.io/sitemap.xml",
+            ],
+            exclude=["api-ref", "www.prefect.io/events"],
+        ),
+        GitHubRepoLoader(
+            repo="PrefectHQ/prefect",
+            include_globs=["flows/"],
+        ),
+    ],
+    "controlflow": [
+        SitemapLoader(
+            urls=["https://controlflow.ai/sitemap.xml"],
+        ),
+        GitHubRepoLoader(
+            repo="PrefectHQ/controlflow",
+            include_globs=["examples/"],
+        ),
+    ],
+}
 
 
 @task(
@@ -58,12 +90,21 @@ async def run_loader(loader: Loader) -> list[Document]:
     return await loader.load()
 
 
-@flow(name="Update Knowledge", log_prints=True)
-async def refresh_tpuf_namespace(namespace: str = "testing", reset: bool = False):
+@flow(
+    name="Update Namespace",
+    flow_run_name="Refreshing {namespace}",
+    log_prints=True,
+)
+async def refresh_tpuf_namespace(
+    namespace: str,
+    namespace_loaders: list[Loader],
+    reset: bool = False,
+    batch_size: int = 100,
+):
     """Flow updating vectorstore with info from the Prefect community."""
     documents: list[Document] = [
         doc
-        for future in run_loader.map(quote(prefect_loaders))  # type: ignore
+        for future in run_loader.map(quote(namespace_loaders))  # type: ignore
         for doc in future.result()
     ]
 
@@ -71,15 +112,23 @@ async def refresh_tpuf_namespace(namespace: str = "testing", reset: bool = False
 
     async with TurboPuffer(namespace=namespace) as tpuf:
         if reset:
-            await tpuf.reset()
+            await task(tpuf.reset)()
             print(f"RESETTING: Deleted all documents from tpuf ns {namespace!r}.")
 
-        await tpuf.upsert(documents=documents)
+        await task(tpuf.upsert_batched)(documents=documents, batch_size=batch_size)
 
     print(f"Updated tpuf ns {namespace!r} with {len(documents)} documents.")
+
+
+@flow(name="Refresh Namespaces", log_prints=True)
+async def refresh_tpuf(reset: bool = False, batch_size: int = 100):
+    for namespace, namespace_loaders in loaders.items():
+        await refresh_tpuf_namespace(
+            namespace, namespace_loaders, reset=reset, batch_size=batch_size
+        )
 
 
 if __name__ == "__main__":
     import asyncio
 
-    asyncio.run(refresh_tpuf_namespace(namespace="prefect-2", reset=True))  # type: ignore
+    asyncio.run(refresh_tpuf(reset=True))
