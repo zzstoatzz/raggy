@@ -12,4 +12,4 @@ Read the [docs](https://zzstoatzz.github.io/raggy/)
 - putting these documents in vectorstores
 - querying the vectorstores to find documents similar to a query
 
-see this [example](/examples/refresh_vectorstore/refresh_tpuf.py) I use to refresh a chatbot that knows about `prefect`.
+see this [example](https://github.com/zzstoatzz/raggy/blob/main/examples/refresh_vectorstore/refresh_tpuf.py) I use to refresh a chatbot that knows about `prefect`.
