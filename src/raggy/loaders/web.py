@@ -1,4 +1,3 @@
-import asyncio
 import re
 from typing import Callable, Self
 from urllib.parse import urljoin
@@ -11,11 +10,10 @@ from pydantic import Field
 import raggy
 from raggy.documents import Document, document_to_excerpts
 from raggy.loaders.base import Loader, MultiLoader
+from raggy.utilities.asyncutils import run_concurrent_tasks
 from raggy.utilities.collections import batched
 
 user_agent = UserAgent()
-
-URL_CONCURRENCY = asyncio.Semaphore(30)
 
 
 def ensure_http(url):
@@ -30,7 +28,6 @@ async def sitemap_search(sitemap_url) -> list[str]:
         response.raise_for_status()
 
     soup = BeautifulSoup(response.content, "xml")
-
     return [loc.text for loc in soup.find_all("loc")]
 
 
@@ -51,7 +48,6 @@ class URLLoader(WebLoader):
     """
 
     source_type: str = "url"
-
     urls: list[str] = Field(default_factory=list)
 
     async def load(self) -> list[Document]:
@@ -59,20 +55,26 @@ class URLLoader(WebLoader):
         async with AsyncClient(
             headers=headers, timeout=30, follow_redirects=True
         ) as client:
-            documents = await asyncio.gather(
-                *[self.load_url(u, client) for u in self.urls], return_exceptions=True
+
+            async def load_url_task(url):
+                try:
+                    return await self.load_url(url, client)
+                except Exception as e:
+                    self.logger.error(e)
+                    return None
+
+            documents = await run_concurrent_tasks(
+                [lambda u=url: load_url_task(u) for url in self.urls], max_concurrent=30
             )
+
         final_documents = []
         for d in documents:
-            if isinstance(d, Exception):
-                self.logger.error(d)
-            elif d is not None:
-                final_documents.extend(await document_to_excerpts(d))  # type: ignore
+            if d is not None:
+                final_documents.extend(await document_to_excerpts(d))
         return final_documents
 
     async def load_url(self, url, client) -> Document | None:
-        async with URL_CONCURRENCY:
-            response = await client.get(url, follow_redirects=True)
+        response = await client.get(url, follow_redirects=True)
 
         if not response.status_code == 200:
             self.logger.warning_style(
@@ -84,16 +86,17 @@ class URLLoader(WebLoader):
         meta_refresh = soup.find(
             "meta", attrs={"http-equiv": re.compile(r"refresh", re.I)}
         )
-        if meta_refresh:
-            refresh_content = meta_refresh.get("content")
-            redirect_url_match = re.search(r"url=([\S]+)", refresh_content, re.I)
-            if redirect_url_match:
-                redirect_url = redirect_url_match.group(1)
-                # join base url with relative url
-                redirect_url = urljoin(str(response.url), redirect_url)
-                # Now ensure the URL includes the protocol
-                redirect_url = ensure_http(redirect_url)
-                response = await client.get(redirect_url, follow_redirects=True)
+        if meta_refresh and isinstance(meta_refresh, BeautifulSoup.Tag):
+            content = meta_refresh.get("content", "")
+            if isinstance(content, str):
+                redirect_url_match = re.search(r"url=([\S]+)", content, re.I)
+                if redirect_url_match:
+                    redirect_url = redirect_url_match.group(1)
+                    # join base url with relative url
+                    redirect_url = urljoin(str(response.url), redirect_url)
+                    # Now ensure the URL includes the protocol
+                    redirect_url = ensure_http(redirect_url)
+                    response = await client.get(redirect_url, follow_redirects=True)
 
         document = await self.response_to_document(response)
         if document:
@@ -103,13 +106,14 @@ class URLLoader(WebLoader):
         return document
 
     async def response_to_document(self, response: Response) -> Document:
+        """Convert an HTTP response to a Document."""
         return Document(
             text=await self.get_document_text(response),
-            metadata=dict(
-                link=str(response.url),
-                source=self.source_type,
-                document_type=self.document_type,
-            ),
+            metadata={
+                "link": str(response.url),
+                "source": self.source_type,
+                "document_type": self.document_type,
+            },
         )
 
     async def get_document_text(self, response: Response) -> str:
@@ -127,31 +131,17 @@ class HTMLLoader(URLLoader):
 
 
 class SitemapLoader(URLLoader):
-    """A loader that loads URLs from a sitemap.
-
-    Attributes:
-        include: A list of strings or regular expressions. Only URLs that match one of these will be included.
-        exclude: A list of strings or regular expressions. URLs that match one of these will be excluded.
-        url_loader: The loader to use for loading the URLs.
-
-    Examples:
-        Load all URLs from a sitemap:
-        ```python
-        from raggy.loaders.web import SitemapLoader
-        loader = SitemapLoader(urls=["https://askmarvin.ai/sitemap.xml"])
-        documents = await loader.load()
-        print(documents)
-        ```
-    """
+    """A loader that loads URLs from a sitemap."""
 
     include: list[str | re.Pattern] = Field(default_factory=list)
     exclude: list[str | re.Pattern] = Field(default_factory=list)
     url_loader: URLLoader = Field(default_factory=HTMLLoader)
-
     url_processor: Callable[[str], str] = lambda x: x  # noqa: E731
 
     async def _get_loader(self: Self) -> MultiLoader:
-        urls = await asyncio.gather(*[self.load_sitemap(url) for url in self.urls])
+        urls = await run_concurrent_tasks(
+            [lambda u=url: self.load_sitemap(u) for url in self.urls], max_concurrent=5
+        )
         return MultiLoader(
             loaders=[
                 type(self.url_loader)(urls=url_batch, headers=await self.get_headers())  # type: ignore
@@ -169,7 +159,6 @@ class SitemapLoader(URLLoader):
         def is_included(url: str) -> bool:
             if not self.include:
                 return True
-
             return any(
                 (isinstance(i, str) and i in url)
                 or (isinstance(i, re.Pattern) and re.search(i, url))
