@@ -147,6 +147,25 @@ class TurboPuffer(Vectorstore):
                 return False
             raise
 
+    async def upsert_batched(
+        self,
+        documents: Iterable[Document],
+        batch_size: int = 100,
+    ):
+        """Upsert documents in batches to avoid memory issues with large datasets.
+
+        Args:
+            documents: Iterable of documents to upsert
+            batch_size: Maximum number of documents to upsert in each batch
+        """
+        document_list = list(documents)
+        total_docs = len(document_list)
+
+        for i in range(0, total_docs, batch_size):
+            batch = document_list[i : i + batch_size]
+            await self.upsert(documents=batch)
+            print(f"Upserted batch {i//batch_size + 1} ({len(batch)} documents)")
+
 
 async def query_namespace(
     query_text: str,
