@@ -22,12 +22,11 @@ Vectorstore operations are now synchronous by default, with async batching avail
 ```python
 from raggy.vectorstores.tpuf import TurboPuffer
 
-# Sync usage
-with TurboPuffer() as vectorstore:  # uses default `raggy` namespace
+with TurboPuffer(namespace="my_documents") as vectorstore:
+    # Synchronous operation
     vectorstore.upsert(documents)
 
-# Async batched usage for large document sets
-async with TurboPuffer() as vectorstore:
+    # Async batched usage for large document sets
     await vectorstore.upsert_batched(
         documents,
         batch_size=100,
