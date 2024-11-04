@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from turbopuffer.vectors import VectorResult
 
 from raggy.documents import Document
-from raggy.utilities.asyncutils import run_sync_in_worker_thread
+from raggy.utilities.asyncutils import run_concurrent_tasks, run_sync_in_worker_thread
 from raggy.utilities.embeddings import create_openai_embeddings
 from raggy.utilities.text import slice_tokens
 from raggy.vectorstores.base import Vectorstore
@@ -27,8 +27,10 @@ class TurboPufferSettings(BaseSettings):
         extra="ignore",
     )
 
-    api_key: SecretStr
-    default_namespace: str = "raggy"
+    api_key: SecretStr = Field(
+        default=..., description="The API key for the TurboPuffer instance."
+    )
+    default_namespace: str = Field(default="raggy")
 
     @model_validator(mode="after")
     def set_api_key(self):
@@ -151,20 +153,32 @@ class TurboPuffer(Vectorstore):
         self,
         documents: Iterable[Document],
         batch_size: int = 100,
+        max_concurrent: int = 25,
     ):
-        """Upsert documents in batches to avoid memory issues with large datasets.
+        """Upsert documents in batches concurrently.
 
         Args:
             documents: Iterable of documents to upsert
-            batch_size: Maximum number of documents to upsert in each batch
+            batch_size: Maximum number of documents per batch
+            max_concurrent: Maximum number of concurrent upsert operations
         """
         document_list = list(documents)
-        total_docs = len(document_list)
+        batches = [
+            document_list[i : i + batch_size]
+            for i in range(0, len(document_list), batch_size)
+        ]
 
-        for i in range(0, total_docs, batch_size):
-            batch = document_list[i : i + batch_size]
+        async def process_batch(batch: list[Document], batch_num: int):
             await self.upsert(documents=batch)
-            print(f"Upserted batch {i//batch_size + 1} ({len(batch)} documents)")
+            print(
+                f"Upserted batch {batch_num + 1}/{len(batches)} ({len(batch)} documents)"
+            )
+
+        tasks = [
+            lambda b=batch, i=i: process_batch(b, i) for i, batch in enumerate(batches)
+        ]
+
+        await run_concurrent_tasks(tasks, max_concurrent=max_concurrent)
 
 
 async def query_namespace(

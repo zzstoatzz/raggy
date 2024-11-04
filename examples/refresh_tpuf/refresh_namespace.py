@@ -1,7 +1,7 @@
 # /// script
 # dependencies = [
 #     "prefect",
-#     "raggy[tpuf]@git+https://github.com/zzstoatzz/raggy@improve-ingest",
+#     "raggy[tpuf]@git+https://github.com/zzstoatzz/raggy",
 #     "trafilatura",
 # ]
 # ///
@@ -100,11 +100,12 @@ async def refresh_tpuf_namespace(
     namespace_loaders: list[Loader],
     reset: bool = False,
     batch_size: int = 100,
+    max_concurrent: int = 8,
 ):
     """Flow updating vectorstore with info from the Prefect community."""
     documents: list[Document] = [
         doc
-        for future in run_loader.map(quote(namespace_loaders))  # type: ignore
+        for future in run_loader.map(quote(namespace_loaders))
         for doc in future.result()
     ]
 
@@ -115,14 +116,20 @@ async def refresh_tpuf_namespace(
             await task(tpuf.reset)()
             print(f"RESETTING: Deleted all documents from tpuf ns {namespace!r}.")
 
-        await task(tpuf.upsert_batched)(documents=documents, batch_size=batch_size)
+        await task(tpuf.upsert_batched)(
+            documents=documents, batch_size=batch_size, max_concurrent=max_concurrent
+        )
 
     print(f"Updated tpuf ns {namespace!r} with {len(documents)} documents.")
 
 
 @flow(name="Refresh Namespaces", log_prints=True)
-async def refresh_tpuf(reset: bool = False, batch_size: int = 100):
+async def refresh_tpuf(
+    reset: bool = False, batch_size: int = 100, test_mode: bool = False
+):
     for namespace, namespace_loaders in loaders.items():
+        if test_mode:
+            namespace = f"TESTING-{namespace}"
         await refresh_tpuf_namespace(
             namespace, namespace_loaders, reset=reset, batch_size=batch_size
         )
@@ -130,5 +137,11 @@ async def refresh_tpuf(reset: bool = False, batch_size: int = 100):
 
 if __name__ == "__main__":
     import asyncio
+    import sys
 
-    asyncio.run(refresh_tpuf(reset=True))
+    if len(sys.argv) > 1:
+        test_mode = sys.argv[1] != "prod"
+    else:
+        test_mode = True
+
+    asyncio.run(refresh_tpuf(reset=True, test_mode=test_mode))

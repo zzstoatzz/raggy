@@ -68,7 +68,9 @@ class Settings(BaseSettings):
         extra="allow",
         validate_assignment=True,
     )
-
+    max_concurrent_tasks: int = Field(
+        default=50, gt=3, description="The maximum number of concurrent tasks to run."
+    )
     html_parser: Callable[[str], str] = default_html_parser
 
     log_level: str = Field(
