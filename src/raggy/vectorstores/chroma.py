@@ -18,6 +18,7 @@ except ImportError:
     )
 
 from raggy.documents import Document as RaggyDocument
+from raggy.documents import DocumentMetadata
 from raggy.settings import settings
 from raggy.utilities.asyncutils import run_sync_in_worker_thread
 from raggy.utilities.embeddings import create_openai_embeddings
@@ -90,7 +91,10 @@ class Chroma(Vectorstore):
         ids = [doc.id for doc in unique_documents]
         texts = [doc.text for doc in unique_documents]
         metadatas = [
-            doc.metadata.model_dump(exclude_none=True) for doc in unique_documents
+            doc.metadata.model_dump(exclude_none=True)
+            if isinstance(doc.metadata, DocumentMetadata)
+            else None
+            for doc in unique_documents
         ]
 
         embeddings = await create_openai_embeddings(texts)
@@ -145,7 +149,9 @@ class Chroma(Vectorstore):
             ids=[document.id for document in documents],
             documents=[document.text for document in documents],
             metadatas=[
-                document.metadata.model_dump(exclude_none=True) or None
+                document.metadata.model_dump(exclude_none=True)
+                if isinstance(document.metadata, DocumentMetadata)
+                else None
                 for document in documents
             ],
             embeddings=await create_openai_embeddings(
