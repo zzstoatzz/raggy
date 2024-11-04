@@ -17,7 +17,7 @@ print(documents[0])
 ## Adding documents to a vectorstore
 
 !!! note "New in 0.2.0"
-Vectorstore operations are now synchronous by default, with async batching available via `upsert_batched`.
+    Vectorstore operations are now synchronous by default, with async batching available via `upsert_batched`.
 
 ```python
 from raggy.vectorstores.tpuf import TurboPuffer
