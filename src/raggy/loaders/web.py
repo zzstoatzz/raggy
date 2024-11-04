@@ -109,11 +109,11 @@ class URLLoader(WebLoader):
         """Convert an HTTP response to a Document."""
         return Document(
             text=await self.get_document_text(response),
-            metadata={
-                "link": str(response.url),
-                "source": self.source_type,
-                "document_type": self.document_type,
-            },
+            metadata=dict(
+                link=str(response.url),
+                source=self.source_type,
+                document_type=self.document_type,
+            ),
         )
 
     async def get_document_text(self, response: Response) -> str:
@@ -131,7 +131,20 @@ class HTMLLoader(URLLoader):
 
 
 class SitemapLoader(URLLoader):
-    """A loader that loads URLs from a sitemap."""
+    """A loader that loads URLs from a sitemap.
+    Attributes:
+        include: A list of strings or regular expressions. Only URLs that match one of these will be included.
+        exclude: A list of strings or regular expressions. URLs that match one of these will be excluded.
+        url_loader: The loader to use for loading the URLs.
+    Examples:
+        Load all URLs from a sitemap:
+        ```python
+        from raggy.loaders.web import SitemapLoader
+        loader = SitemapLoader(urls=["https://controlflow.ai/sitemap.xml"])
+        documents = await loader.load()
+        print(documents)
+        ```
+    """
 
     include: list[str | re.Pattern] = Field(default_factory=list)
     exclude: list[str | re.Pattern] = Field(default_factory=list)

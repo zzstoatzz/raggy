@@ -4,7 +4,7 @@ from functools import partial
 from typing import Annotated
 
 from jinja2 import Environment, Template
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from raggy.utilities.ids import generate_prefixed_uuid
 from raggy.utilities.text import count_tokens, extract_keywords, hash_text, split_text
@@ -32,10 +32,17 @@ class Document(BaseModel):
     text: str = Field(..., description="Document text content.")
 
     embedding: list[float] | None = Field(default=None)
-    metadata: DocumentMetadata = Field(default_factory=DocumentMetadata)
+    metadata: DocumentMetadata | dict = Field(default_factory=DocumentMetadata)
 
     tokens: int | None = Field(default=None)
     keywords: list[str] = Field(default_factory=list)
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def ensure_metadata(cls, v):
+        if isinstance(v, dict):
+            return DocumentMetadata(**v)
+        return v
 
     @model_validator(mode="after")
     def ensure_tokens(self):
