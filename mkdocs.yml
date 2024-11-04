@@ -47,8 +47,20 @@ theme:
     - content.code.annotate
     - announce.dismiss
   palette:
-    primary: green
-    accent: teal
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: green
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: "#2E7D32"
+      accent: "#00897B"
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   name: material
   logo: assets/logos/raggy.png
   favicon: assets/logos/raggy.png
