@@ -1,6 +1,7 @@
 # Ingest Strategy
 
 When building RAG applications, you often need to load and refresh content from multiple sources. This can involve:
+
 - Expensive API calls
 - Large document processing
 - Concurrent embedding operations
