@@ -45,10 +45,12 @@ class URLLoader(WebLoader):
 
     Attributes:
         urls: The URLs to load from.
+        create_excerpts: Whether to split documents into excerpts. Defaults to True.
     """
 
     source_type: str = "url"
     urls: list[str] = Field(default_factory=list)
+    create_excerpts: bool = Field(default=True)
 
     async def load(self) -> list[Document]:
         headers = await self.get_headers()
@@ -70,7 +72,10 @@ class URLLoader(WebLoader):
         final_documents = []
         for d in documents:
             if d is not None:
-                final_documents.extend(await document_to_excerpts(d))
+                if self.create_excerpts:
+                    final_documents.extend(await document_to_excerpts(d))
+                else:
+                    final_documents.append(d)
         return final_documents
 
     async def load_url(self, url, client) -> Document | None:
@@ -136,6 +141,7 @@ class SitemapLoader(URLLoader):
         include: A list of strings or regular expressions. Only URLs that match one of these will be included.
         exclude: A list of strings or regular expressions. URLs that match one of these will be excluded.
         url_loader: The loader to use for loading the URLs.
+        create_excerpts: Whether to split documents into excerpts. Defaults to True.
     Examples:
         Load all URLs from a sitemap:
         ```python
@@ -150,6 +156,7 @@ class SitemapLoader(URLLoader):
     exclude: list[str | re.Pattern] = Field(default_factory=list)
     url_loader: URLLoader = Field(default_factory=HTMLLoader)
     url_processor: Callable[[str], str] = lambda x: x  # noqa: E731
+    create_excerpts: bool = Field(default=True)
 
     async def _get_loader(self: Self) -> MultiLoader:
         urls = await run_concurrent_tasks(
@@ -157,7 +164,11 @@ class SitemapLoader(URLLoader):
         )
         return MultiLoader(
             loaders=[
-                type(self.url_loader)(urls=url_batch, headers=await self.get_headers())  # type: ignore
+                type(self.url_loader)(
+                    urls=url_batch,
+                    headers=await self.get_headers(),
+                    create_excerpts=self.create_excerpts,
+                )  # type: ignore
                 for url_batch in batched(
                     [self.url_processor(u) for url_list in urls for u in url_list],  # type: ignore
                     10,
