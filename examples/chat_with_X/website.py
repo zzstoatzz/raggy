@@ -14,25 +14,15 @@ import warnings
 from datetime import timedelta
 
 import httpx
-import trafilatura
-from bs4 import BeautifulSoup
 from marvin.beta.assistants import Assistant
 from prefect import flow, task
 from rich.status import Status
 
-import raggy
 from raggy.documents import Document
 from raggy.loaders.web import SitemapLoader
 from raggy.vectorstores.tpuf import TurboPuffer, multi_query_tpuf
 
 TPUF_NS = "demo"
-
-
-def html_parser(html: str) -> str:
-    return trafilatura.extract(html) or BeautifulSoup(html, "html.parser").get_text()
-
-
-raggy.settings.html_parser = html_parser
 
 
 def get_last_modified(context, parameters):

@@ -2,34 +2,21 @@
 # dependencies = [
 #     "prefect",
 #     "raggy[chroma]",
-#     "trafilatura",
 # ]
 # ///
 
 from datetime import timedelta
 from typing import Literal
 
-from bs4 import BeautifulSoup
 from chromadb.api.models.Collection import Document as ChromaDocument
 from prefect import flow, task
 from prefect.tasks import task_input_hash
 
-import raggy
 from raggy.documents import Document
 from raggy.loaders.base import Loader
 from raggy.loaders.github import GitHubRepoLoader
 from raggy.loaders.web import SitemapLoader
 from raggy.vectorstores.chroma import Chroma, ChromaClientType
-
-
-def html_parser(html: str) -> str:
-    import trafilatura
-
-    return trafilatura.extract(html) or BeautifulSoup(html, "html.parser").get_text()
-
-
-raggy.settings.html_parser = html_parser
-
 
 prefect_loaders = [
     SitemapLoader(
