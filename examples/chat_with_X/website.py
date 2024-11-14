@@ -4,7 +4,6 @@
 #   "marvin",
 #   "prefect",
 #   "raggy[tpuf]",
-#   "trafilatura"
 # ]
 # ///
 
