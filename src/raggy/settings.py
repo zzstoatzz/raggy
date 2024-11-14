@@ -1,34 +1,28 @@
 from typing import Callable
 
-from bs4 import BeautifulSoup
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def default_html_parser(html: str) -> str:
-    """The default HTML parser. This uses `bs4`'s `html.parser`, which is not very good.
-    Like, at all.
-
-    In fact it's really bad. You should definitely set `raggy.settings.html_parser` to a
-    `Callable[[str], str]` that parses HTML well.
-
+    """The default HTML parser using trafilatura or bs4 as a fallback.
     Args:
         html: The HTML to parse.
 
     Returns:
         The parsed HTML.
     """
-    from raggy.utilities.logging import get_logger
+    import trafilatura
+    from bs4 import BeautifulSoup
 
-    get_logger().warning_kv(
-        "USING DEFAULT HTML PARSER",
-        (
-            "BeautifulSoup's html.parser is the default parser and is not very good. "
-            "Consider setting `raggy.settings.html_parser` to a `Callable[[str], str]` that parses HTML well."
-        ),
-        "red",
+    trafilatura_config = trafilatura.settings.use_config()  # type: ignore
+    # disable signal, so it can run in a worker thread
+    # https://github.com/adbar/trafilatura/issues/202
+    trafilatura_config.set("DEFAULT", "EXTRACTION_TIMEOUT", "0")
+    return (
+        trafilatura.extract(html, config=trafilatura_config)
+        or BeautifulSoup(html, "html.parser").get_text()
     )
-    return BeautifulSoup(html, "html.parser").get_text()
 
 
 class ChromaSettings(BaseSettings):

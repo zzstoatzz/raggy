@@ -2,40 +2,20 @@
 # dependencies = [
 #     "prefect",
 #     "raggy[tpuf]",
-#     "trafilatura",
 # ]
 # ///
 
 from datetime import timedelta
 
-from bs4 import BeautifulSoup
 from prefect import flow, task
 from prefect.tasks import task_input_hash
 from prefect.utilities.annotations import quote
 
-import raggy
 from raggy.documents import Document
 from raggy.loaders.base import Loader
 from raggy.loaders.github import GitHubRepoLoader
 from raggy.loaders.web import SitemapLoader
 from raggy.vectorstores.tpuf import TurboPuffer
-
-
-def html_parser(html: str) -> str:
-    import trafilatura
-
-    trafilatura_config = trafilatura.settings.use_config()  # type: ignore
-    # disable signal, so it can run in a worker thread
-    # https://github.com/adbar/trafilatura/issues/202
-    trafilatura_config.set("DEFAULT", "EXTRACTION_TIMEOUT", "0")
-    return (
-        trafilatura.extract(html, config=trafilatura_config)
-        or BeautifulSoup(html, "html.parser").get_text()
-    )
-
-
-raggy.settings.html_parser = html_parser
-
 
 loaders = {
     "prefect-2": [
