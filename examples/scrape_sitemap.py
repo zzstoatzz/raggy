@@ -2,15 +2,22 @@
 # dependencies = [
 #     "raggy",
 #     "trafilatura",
+#     "rich",
 # ]
 # ///
 
 import asyncio
 
 from bs4 import BeautifulSoup
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
 
 import raggy
+from raggy.documents import Document, DocumentMetadata
 from raggy.loaders.web import SitemapLoader
+
+console = Console()
 
 
 def html_parser(html: str) -> str:
@@ -24,12 +31,33 @@ def html_parser(html: str) -> str:
     )
 
 
-async def main(urls: list[str]):
+async def main(urls: list[str]) -> list[Document]:
     raggy.settings.html_parser = html_parser
+
     loader = SitemapLoader(urls=urls, create_excerpts=False)
     docs = await loader.load()
-    print(f"scraped {len(docs)} documents")
+    console.print(f"\n[bold green]✓[/] Scraped {len(docs)} documents\n")
+
+    if docs:
+        doc = docs[0]
+
+        assert isinstance(doc.metadata, DocumentMetadata)
+        title = Text(f"Document from: {doc.metadata.link}", style="bold blue")
+
+        preview = doc.text[:500] + "..." if len(doc.text) > 500 else doc.text
+
+        console.print(
+            Panel(
+                Text.from_markup(preview),
+                title=title,
+                border_style="green",
+                padding=(1, 2),
+            )
+        )
+
+    return docs
 
 
 if __name__ == "__main__":
-    asyncio.run(main(["https://prefect.io/blog/sitemap.xml"]))
+    WEBSITE_URLS = ["https://prefect.io/blog/sitemap.xml"]
+    documents = asyncio.run(main(WEBSITE_URLS))
