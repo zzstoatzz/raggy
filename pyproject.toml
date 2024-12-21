@@ -38,6 +38,7 @@ dev = [
     "mkdocs-material[imaging]>=9.1.17",
     "mkdocstrings[python]~=0.22",
     "mypy",
+    "pip",
     "pre-commit>=2.21,<4.0",
     "ruff",
     "types-aiofiles",
