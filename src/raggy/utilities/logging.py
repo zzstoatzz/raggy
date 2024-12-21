@@ -17,20 +17,15 @@ class RaggyLogger(logging.Logger):
     def __init__(self, name: str, level: int = logging.NOTSET) -> None:
         super().__init__(name, level)
 
-    def debug_style(self, message: str, style: str | None = None) -> None:
-        ...
+    def debug_style(self, message: str, style: str | None = None) -> None: ...
 
-    def info_style(self, message: str, style: str | None = None) -> None:
-        ...
+    def info_style(self, message: str, style: str | None = None) -> None: ...
 
-    def warning_style(self, message: str, style: str | None = None) -> None:
-        ...
+    def warning_style(self, message: str, style: str | None = None) -> None: ...
 
-    def error_style(self, message: str, style: str | None = None) -> None:
-        ...
+    def error_style(self, message: str, style: str | None = None) -> None: ...
 
-    def critical_style(self, message: str, style: str | None = None) -> None:
-        ...
+    def critical_style(self, message: str, style: str | None = None) -> None: ...
 
     def debug_kv(
         self,
@@ -39,8 +34,7 @@ class RaggyLogger(logging.Logger):
         key_style: str = "green",
         value_style: str = "default on default",
         delimiter: str = ": ",
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def info_kv(
         self,
@@ -49,8 +43,7 @@ class RaggyLogger(logging.Logger):
         key_style: str = "blue",
         value_style: str = "default on default",
         delimiter: str = ": ",
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def warning_kv(
         self,
@@ -59,8 +52,7 @@ class RaggyLogger(logging.Logger):
         key_style: str = "yellow",
         value_style: str = "default on default",
         delimiter: str = ": ",
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def error_kv(
         self,
@@ -69,8 +61,7 @@ class RaggyLogger(logging.Logger):
         key_style: str = "red",
         value_style: str = "default on default",
         delimiter: str = ": ",
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def critical_kv(
         self,
@@ -79,8 +70,7 @@ class RaggyLogger(logging.Logger):
         key_style: str = "red",
         value_style: str = "default on default",
         delimiter: str = ": ",
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 logging.setLoggerClass(RaggyLogger)
