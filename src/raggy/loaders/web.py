@@ -1,8 +1,9 @@
+import asyncio
 import re
 from typing import Callable, Self
 from urllib.parse import urljoin
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from fake_useragent import UserAgent
 from httpx import AsyncClient, Response
 from pydantic import Field
@@ -10,7 +11,6 @@ from pydantic import Field
 import raggy
 from raggy.documents import Document, document_to_excerpts
 from raggy.loaders.base import Loader, MultiLoader
-from raggy.utilities.asyncutils import run_concurrent_tasks
 from raggy.utilities.collections import batched
 
 user_agent = UserAgent()
@@ -27,7 +27,7 @@ async def sitemap_search(sitemap_url) -> list[str]:
         response = await client.get(sitemap_url, follow_redirects=True)
         response.raise_for_status()
 
-    soup = BeautifulSoup(response.content, "xml")
+    soup = BeautifulSoup(response.text, "xml")
     return [loc.text for loc in soup.find_all("loc")]
 
 
@@ -58,25 +58,22 @@ class URLLoader(WebLoader):
             headers=headers, timeout=30, follow_redirects=True
         ) as client:
 
-            async def load_url_task(url):
+            async def load_url_task(url) -> list[Document]:
                 try:
-                    return await self.load_url(url, client)
+                    doc = await self.load_url(url, client)
+                    if doc is not None:
+                        if self.create_excerpts:
+                            return await document_to_excerpts(doc)
+                        return [doc]
+                    return []
                 except Exception as e:
                     self.logger.error(e)
-                    return None
+                    return []
 
-            documents = await run_concurrent_tasks(
-                [lambda u=url: load_url_task(u) for url in self.urls], max_concurrent=30
-            )
+            tasks = [load_url_task(url) for url in self.urls]
+            document_lists = await asyncio.gather(*tasks)
 
-        final_documents = []
-        for d in documents:
-            if d is not None:
-                if self.create_excerpts:
-                    final_documents.extend(await document_to_excerpts(d))
-                else:
-                    final_documents.append(d)
-        return final_documents
+        return [doc for docs in document_lists for doc in docs if doc is not None]
 
     async def load_url(self, url, client) -> Document | None:
         response = await client.get(url, follow_redirects=True)
@@ -91,7 +88,7 @@ class URLLoader(WebLoader):
         meta_refresh = soup.find(
             "meta", attrs={"http-equiv": re.compile(r"refresh", re.I)}
         )
-        if meta_refresh and isinstance(meta_refresh, BeautifulSoup.Tag):
+        if meta_refresh and isinstance(meta_refresh, Tag):
             content = meta_refresh.get("content", "")
             if isinstance(content, str):
                 redirect_url_match = re.search(r"url=([\S]+)", content, re.I)
@@ -142,14 +139,6 @@ class SitemapLoader(URLLoader):
         exclude: A list of strings or regular expressions. URLs that match one of these will be excluded.
         url_loader: The loader to use for loading the URLs.
         create_excerpts: Whether to split documents into excerpts. Defaults to True.
-    Examples:
-        Load all URLs from a sitemap:
-        ```python
-        from raggy.loaders.web import SitemapLoader
-        loader = SitemapLoader(urls=["https://controlflow.ai/sitemap.xml"])
-        documents = await loader.load()
-        print(documents)
-        ```
     """
 
     include: list[str | re.Pattern] = Field(default_factory=list)
@@ -159,18 +148,18 @@ class SitemapLoader(URLLoader):
     create_excerpts: bool = Field(default=True)
 
     async def _get_loader(self: Self) -> MultiLoader:
-        urls = await run_concurrent_tasks(
-            [lambda u=url: self.load_sitemap(u) for url in self.urls], max_concurrent=5
-        )
+        sitemap_tasks = [self.load_sitemap(url) for url in self.urls]
+        url_lists = await asyncio.gather(*sitemap_tasks)
+
         return MultiLoader(
             loaders=[
                 type(self.url_loader)(
-                    urls=url_batch,
+                    urls=list(url_batch),
                     headers=await self.get_headers(),
                     create_excerpts=self.create_excerpts,
-                )  # type: ignore
+                )
                 for url_batch in batched(
-                    [self.url_processor(u) for url_list in urls for u in url_list],  # type: ignore
+                    [self.url_processor(u) for url_list in url_lists for u in url_list],
                     10,
                 )
             ]

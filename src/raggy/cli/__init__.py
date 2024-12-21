@@ -1,10 +1,9 @@
 import argparse
 import os
 import sys
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
-
-import openai
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
@@ -15,7 +14,10 @@ from rich.status import Status
 from rich.syntax import Syntax
 from rich.text import Text
 
+from pydantic_ai import Agent, result as pa_result
 
+
+# Prettify code fences with Rich
 class SimpleCodeBlock(CodeBlock):
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
@@ -39,61 +41,53 @@ def app() -> int:
     parser = argparse.ArgumentParser(
         prog="aicli",
         description="""\
-OpenAI powered AI CLI (thank you samuelcolvin)
+Pydantic AI powered CLI
 
 Special prompts:
 * `show-markdown` - show the markdown output from the previous response
 * `multiline` - toggle multiline mode
 """,
     )
-    parser.add_argument(
-        "prompt", nargs="?", help="AI Prompt, if omitted fall into interactive mode"
-    )
-
-    parser.add_argument(
-        "--no-stream",
-        action="store_true",
-        help="Whether to stream responses from OpenAI",
-    )
-
+    parser.add_argument("prompt", nargs="?", help="AI Prompt, else interactive mode")
+    parser.add_argument("--no-stream", action="store_true", help="Disable streaming")
     parser.add_argument("--version", action="store_true", help="Show version and exit")
 
     args = parser.parse_args()
 
     console = Console()
-    console.print("OpenAI powered AI CLI", style="green bold", highlight=False)
+    console.print("Pydantic AI CLI", style="green bold", highlight=False)
     if args.version:
         return 0
 
-    try:
-        openai_api_key = os.environ["OPENAI_API_KEY"]
-    except KeyError:
+    # Check for an API key (e.g. OPENAI_API_KEY)
+    if "OPENAI_API_KEY" not in os.environ:
         console.print(
             "You must set the OPENAI_API_KEY environment variable", style="red"
         )
         return 1
 
-    client = openai.OpenAI(api_key=openai_api_key)
+    # Create your agent; we set a global system prompt
+    agent = Agent(
+        "openai:gpt-4o",
+        system_prompt="Be a helpful assistant and respond in concise markdown.",
+    )
 
-    now_utc = datetime.now(timezone.utc)
-    t = now_utc.astimezone().tzinfo.tzname(now_utc)  # type: ignore
-    setup = f"""\
-Help the user by responding to their request, the output should 
-be concise and always written in markdown. The current date and time
-is {datetime.now()} {t}. The user is running {sys.platform}."""
-
+    # We'll accumulate the conversation in here (both user and assistant messages)
+    conversation = None
     stream = not args.no_stream
-    messages = [{"role": "system", "content": setup}]
 
+    # If the user supplied a single prompt, just run once
     if args.prompt:
-        messages.append({"role": "user", "content": args.prompt})
         try:
-            ask_openai(client, messages, stream, console)
+            asyncio.run(
+                run_and_display(agent, args.prompt, conversation, stream, console)
+            )
         except KeyboardInterrupt:
             pass
         return 0
 
-    history = Path().home() / ".openai-prompt-history.txt"
+    # Otherwise, interactive mode with prompt_toolkit
+    history = Path.home() / ".openai-prompt-history.txt"
     session = PromptSession(history=FileHistory(str(history)))
     multiline = False
 
@@ -105,70 +99,87 @@ is {datetime.now()} {t}. The user is running {sys.platform}."""
         except (KeyboardInterrupt, EOFError):
             return 0
 
-        if not text.strip():
+        cmd = text.lower().strip()
+        if not cmd:
             continue
 
-        ident_prompt = text.lower().strip(" ").replace(" ", "-")
-        if ident_prompt == "show-markdown":
-            last_content = messages[-1]["content"]
-            console.print("[dim]Last markdown output of last question:[/dim]\n")
-            console.print(
-                Syntax(last_content, lexer="markdown", background_color="default")
-            )
+        if cmd == "show-markdown":
+            # Show last assistant message
+            if not conversation:
+                console.print("No messages yet.", style="dim")
+                continue
+            # The last run result's assistant message is the last item
+            # (the user might have broken the loop, so we search from end)
+            assistant_msg = None
+            for m in reversed(conversation):
+                if m.kind == "response":
+                    # Collect text parts from the response
+                    text_part = "".join(
+                        p.content for p in m.parts if p.part_kind == "text"
+                    )
+                    assistant_msg = text_part
+                    break
+            if assistant_msg:
+                console.print("[dim]Last assistant markdown output:[/dim]\n")
+                console.print(
+                    Syntax(assistant_msg, lexer="markdown", background_color="default")
+                )
+            else:
+                console.print("No assistant response found.", style="dim")
             continue
-        elif ident_prompt == "multiline":
+
+        elif cmd == "multiline":
             multiline = not multiline
             if multiline:
                 console.print(
                     "Enabling multiline mode. "
-                    "[dim]Press [Meta+Enter] or [Esc] followed by [Enter] to accept input.[/dim]"
+                    "[dim]Press [Meta+Enter] or [Esc] then [Enter] to submit.[/dim]"
                 )
             else:
                 console.print("Disabling multiline mode.")
             continue
 
-        messages.append({"role": "user", "content": text})
-
+        # Normal user prompt
         try:
-            content = ask_openai(client, messages, stream, console)
+            conversation = asyncio.run(
+                run_and_display(agent, text, conversation, stream, console)
+            )
         except KeyboardInterrupt:
             return 0
-        messages.append({"role": "assistant", "content": content})
+
+    return 0
 
 
-def ask_openai(
-    client: openai.OpenAI,
-    messages: list[dict[str, str]],
-    stream: bool,
-    console: Console,
-) -> str:
-    with Status("[dim]Working on it…[/dim]", console=console):
-        response = client.chat.completions.create(
-            model="gpt-4", messages=messages, stream=stream
-        )
-
+async def run_and_display(
+    agent: Agent, user_text: str, conversation, stream: bool, console: Console
+):
+    """
+    Runs the agent (stream or not) with user_text, returning the updated conversation.
+    If conversation is None, run from scratch (includes system prompt).
+    Otherwise pass conversation as message_history to continue it.
+    """
     console.print("\nResponse:", style="green")
-    if stream:
-        content = ""
-        interrupted = False
-        with Live("", refresh_per_second=15, console=console) as live:
-            try:
-                for chunk in response:
-                    if chunk.choices[0].finish_reason is not None:
-                        break
-                    chunk_text = chunk.choices[0].delta.content
-                    content += chunk_text
-                    live.update(Markdown(content))
-            except KeyboardInterrupt:
-                interrupted = True
 
-        if interrupted:
-            console.print("[dim]Interrupted[/dim]")
-    else:
-        content = response.choices[0].message.content
-        console.print(Markdown(content))
+    with Live(
+        "[dim]Working on it…[/dim]",
+        console=console,
+        refresh_per_second=15,
+        vertical_overflow="visible",
+    ) as live:
+        if stream:
+            async with agent.run_stream(user_text, message_history=conversation) as run:
+                try:
+                    async for chunk in run.stream_text():
+                        live.update(Markdown(chunk))
+                except Exception as e:
+                    console.print(f"Error: {e}", style="red")
+            new_conversation = run.all_messages()
+        else:
+            run_result = await agent.run(user_text, message_history=conversation)
+            live.update(Markdown(run_result.data))
+            new_conversation = run_result.all_messages()
 
-    return content
+    return new_conversation
 
 
 if __name__ == "__main__":

@@ -1,10 +1,17 @@
 import asyncio
 import inspect
 from functools import partial
-from typing import Annotated
+from typing import Annotated, Callable
 
 from jinja2 import Environment, Template
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
 
 from raggy.utilities.ids import generate_prefixed_uuid
 from raggy.utilities.text import count_tokens, extract_keywords, hash_text, split_text
@@ -36,6 +43,8 @@ class Document(BaseModel):
 
     tokens: int | None = Field(default=None)
     keywords: list[str] = Field(default_factory=list)
+
+    _parent_document_id: str | None = PrivateAttr(default=None)
 
     @field_validator("metadata", mode="before")
     @classmethod
@@ -76,6 +85,7 @@ async def document_to_excerpts(
     excerpt_template: Template | None = None,
     chunk_tokens: int = 300,
     overlap: Annotated[float, Field(strict=True, ge=0, le=1)] = 0.1,
+    split_text_fn: Callable[..., list[str]] = split_text,
     **extra_template_kwargs,
 ) -> list[Document]:
     """
@@ -91,7 +101,7 @@ async def document_to_excerpts(
     if not excerpt_template:
         excerpt_template = EXCERPT_TEMPLATE
 
-    text_chunks: list[str] = split_text(
+    text_chunks: list[str] = split_text_fn(
         text=document.text,
         chunk_size=chunk_tokens,
         chunk_overlap=overlap,
@@ -126,7 +136,7 @@ async def _create_excerpt(
         **extra_template_kwargs,
     )
     return Document(
-        parent_document_id=document.id,
+        _parent_document_id=document.id,  # type: ignore[reportCallIssue]
         text=excerpt_text,
         keywords=keywords,
         metadata=document.metadata if document.metadata else {},

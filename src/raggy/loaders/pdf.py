@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 from tempfile import NamedTemporaryFile
-from typing import List
 from urllib.parse import urlparse
 
 import httpx
@@ -70,7 +69,7 @@ class PDFLoader(Loader):
             with open(file_path, "rb") as pdf_file_obj:
                 yield pdf_file_obj
 
-    async def load(self) -> List[Document]:
+    async def load(self) -> list[Document]:
         async with self.open_pdf_file(self.file_path) as pdf_file_obj:
             pdf_reader = pypdf.PdfReader(pdf_file_obj)
             return [

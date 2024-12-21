@@ -5,6 +5,7 @@
 # ]
 # ///
 
+import os
 from datetime import timedelta
 
 from prefect import flow, task
@@ -57,14 +58,17 @@ loaders = {
 }
 
 
+def _cache_key_with_invalidation(context, parameters):
+    return f"{task_input_hash(context, parameters)}:{os.getenv("RAGGY_CACHE_VERSION", "0")}"
+
+
 @task(
-    retries=2,
-    retry_delay_seconds=[3, 60],
-    cache_key_fn=task_input_hash,
+    retries=1,
+    retry_delay_seconds=3,
+    cache_key_fn=_cache_key_with_invalidation,
     cache_expiration=timedelta(days=1),
     task_run_name="Run {loader.__class__.__name__}",
     persist_result=True,
-    # refresh_cache=True,
 )
 async def run_loader(loader: Loader) -> list[Document]:
     return await loader.load()

@@ -5,7 +5,7 @@ import functools
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Self
 
 import aiofiles
 import chardet
@@ -50,25 +50,26 @@ class GitHubIssueLoader(Loader):
 
     include_comments: bool = Field(default=False)
     ignore_body_after: str = Field(default="### Checklist")
-    ignore_users: List[str] = Field(default_factory=list)
+    ignore_users: list[str] = Field(default_factory=list)
     use_GH_token: bool = Field(default=False)
 
-    request_headers: Dict[str, str] = Field(default_factory=dict)
+    request_headers: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def auth_headers(self):
+    def auth_headers(self) -> Self:
         self.request_headers.update({"Accept": "application/vnd.github.v3+json"})
         if self.use_GH_token and (token := os.getenv("GITHUB_TOKEN")):
             self.request_headers["Authorization"] = f"Bearer {token}"
+        return self
 
     @staticmethod
     @functools.lru_cache(maxsize=2048)
     async def _get_issue_comments(
         repo: str,
-        request_header_items: Tuple[Tuple[str, str]],
+        request_header_items: tuple[tuple[str, str]],
         issue_number: int,
         per_page: int = 100,
-    ) -> List[GitHubComment]:
+    ) -> list[GitHubComment]:
         """
         Get a list of all comments for the given issue.
 
@@ -92,7 +93,7 @@ class GitHubIssueLoader(Loader):
                 page += 1
             return comments
 
-    async def _get_issues(self, per_page: int = 100) -> List[GitHubIssue]:
+    async def _get_issues(self, per_page: int = 100) -> list[GitHubIssue]:
         """
         Get a list of all issues for the given repository.
 
@@ -102,7 +103,7 @@ class GitHubIssueLoader(Loader):
             A list of `GitHubIssue` objects, each representing an issue.
         """  # noqa: E501
         url = f"https://api.github.com/repos/{self.repo}/issues"
-        issues: List[GitHubIssue] = []
+        issues: list[GitHubIssue] = []
         page = 1
         async with httpx.AsyncClient() as client:
             while len(issues) < self.n_issues:
@@ -147,10 +148,10 @@ class GitHubIssueLoader(Loader):
                         text += f"**[{comment.user.login}]**: {comment.body}\n\n"
             metadata = dict(
                 source=self.source_type,
-                link=issue.html_url,
+                link=getattr(issue, "html_url", None),
                 title=issue.title,
                 labels=", ".join([label.name for label in issue.labels]),
-                created_at=issue.created_at.timestamp(),
+                created_at=issue.created_at.timestamp() if issue.created_at else None,
             )
             documents.extend(
                 await document_to_excerpts(
@@ -190,8 +191,8 @@ class GitHubRepoLoader(Loader):
     source_type: str = "github source code"
 
     repo: str = Field(...)
-    include_globs: list[str] = Field(default=None)
-    exclude_globs: list[str] = Field(default=None)
+    include_globs: list[str] | None = Field(default=None)
+    exclude_globs: list[str] | None = Field(default=None)
 
     @field_validator("repo")
     def validate_repo(cls, v):

@@ -117,8 +117,9 @@ class Chroma(Vectorstore):
         return self.collection.count()
 
     def upsert(self, documents: Sequence[RaggyDocument]) -> list[ChromaDocument]:
+        ids = [document.id for document in documents]
         kwargs = dict(
-            ids=[document.id for document in documents],
+            ids=ids,
             documents=[document.text for document in documents],
             metadatas=[
                 document.metadata.model_dump(exclude_none=True)
@@ -132,7 +133,7 @@ class Chroma(Vectorstore):
         )
         self.collection.upsert(**kwargs)  # type: ignore
 
-        get_result = self.collection.get(ids=kwargs["ids"])
+        get_result = self.collection.get(ids=ids)
         return get_result.get("documents") or []
 
     def reset_collection(self):

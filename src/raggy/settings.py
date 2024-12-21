@@ -82,6 +82,10 @@ class Settings(BaseSettings):
         default="gpt-3.5-turbo",
         description="The OpenAI model to use for chat completions.",
     )
+    openai_model: str = Field(
+        default="gpt-4o",
+        description="The OpenAI model to use for chat completions.",
+    )
 
     openai_embeddings_model: str = Field(
         default="text-embedding-3-small",
