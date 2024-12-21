@@ -31,9 +31,10 @@ jobs:
             **/requirements*.txt
             **/pyproject.toml
             **/uv.lock
+            Makefile
 
-      - name: Install dependencies
-        run: uv sync --dev --all-extras
+      - name: Install dependencies and setup pre-commit
+        run: make install
 
-      - name: Run pre-commit
-        uses: pre-commit/action@v3.0.0
+      - name: Run linting and type checking
+        run: make lint typecheck

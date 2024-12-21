@@ -14,8 +14,7 @@ async def create_openai_embeddings(
     input_: str,
     timeout: int = 60,
     model: str = raggy.settings.openai_embeddings_model,
-) -> Embedding:
-    ...
+) -> Embedding: ...
 
 
 @overload
@@ -23,8 +22,7 @@ async def create_openai_embeddings(
     input_: list[str],
     timeout: int = 60,
     model: str = raggy.settings.openai_embeddings_model,
-) -> list[Embedding]:
-    ...
+) -> list[Embedding]: ...
 
 
 @retry(
