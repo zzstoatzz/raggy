@@ -3,13 +3,16 @@ repos:
     rev: v0.1.8
     hooks:
       - id: ruff-format
+        exclude: ^uv\.lock$
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
+        exclude: ^uv\.lock$
   - repo: local
     hooks:
       - id: typecheck
         name: Typecheck
         entry: uv run mypy .
+        additional_dependencies: [mypy]
         types: [python]
-        language: system
+        language: python
         pass_filenames: false

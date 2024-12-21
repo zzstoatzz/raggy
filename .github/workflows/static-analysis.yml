@@ -17,32 +17,23 @@ permissions:
 jobs:
   static_analysis:
     timeout-minutes: 1
-
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
+
       - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
-
-      - name: UV Cache
-        # Manually cache the uv cache directory
-        # until setup-python supports it:
-        # https://github.com/actions/setup-python/issues/822
-        uses: actions/cache@v4
-        id: cache-uv
-        with:
-          path: ~/.cache/uv
-          key: uvcache-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('pyproject.toml') }}
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: |
+            **/requirements*.txt
+            **/pyproject.toml
+            **/uv.lock
 
       - name: Install dependencies
         run: uv sync --dev --all-extras
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
       - name: Run pre-commit
         uses: pre-commit/action@v3.0.0
