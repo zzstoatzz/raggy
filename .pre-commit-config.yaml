@@ -4,7 +4,7 @@ repos:
       - id: typecheck
         name: Typecheck
         entry: uv run mypy .
-        additional_dependencies: [mypy]
+        language: system
         types: [python]
-        language: python
         pass_filenames: false
+        require_serial: true
