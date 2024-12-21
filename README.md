@@ -10,7 +10,6 @@ pip install raggy
 
 For additional features:
 ```python
-pip install raggy[scrapling]  # Enhanced web scraping via Scrapling
 pip install raggy[chroma]     # ChromaDB support
 pip install raggy[tpuf]       # TurboPuffer support
 pip install raggy[pdf]        # PDF processing
@@ -33,8 +32,6 @@ A Python library for:
 
 > [!IMPORTANT]
 > This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
->
-> When installing the optional `[scrapling]` dependency, please note that Scrapling is licensed under the BSD-3-Clause license. By using this optional feature, you agree to comply with [Scrapling's license terms](https://github.com/D4Vinci/Scrapling/blob/main/LICENSE).
 
 ### Contributing
 

@@ -56,7 +56,6 @@ tests = [
 chroma = ["chromadb"]
 tpuf = ["turbopuffer"]
 pdf = ["pypdf"]
-scrapling = ["scrapling"]
 
 [project.scripts]
 raggy = "raggy.cli:app"
