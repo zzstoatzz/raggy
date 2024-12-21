@@ -19,6 +19,7 @@ dependencies = [
     "chardet",
     "fake-useragent",
     "gh-util",
+    "prefect",
     "pydantic-ai-slim[openai]",
     "pypdf",
     "tenacity",
@@ -103,3 +104,44 @@ skip-magic-trailing-comma = false
 
 [tool.setuptools_scm]
 write_to = "src/raggy/_version.py"
+
+[tool.mypy]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+strict_optional = true
+exclude = ["examples/.*"]
+
+[[tool.mypy.overrides]]
+module = [
+    "bs4.*",
+    "fake_useragent.*",
+    "gh_util.*",
+    "turbopuffer.*",
+    "prefect.*",
+    "marvin.*",
+    "praw.*",
+    "yake.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "raggy.cli",
+    "raggy.settings",
+    "raggy.utilities.text",
+    "raggy.utilities.asyncutils",
+    "raggy.vectorstores.tpuf",
+    "raggy.vectorstores.chroma",
+    "raggy.loaders.web",
+    "raggy.loaders.pdf",
+]
+disable_error_code = [
+    "unreachable",
+    "no-any-return",
+    "unused-ignore",
+    "no-redef",
+]

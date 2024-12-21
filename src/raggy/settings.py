@@ -15,10 +15,10 @@ def default_html_parser(html: str) -> str:
     import trafilatura
     from bs4 import BeautifulSoup
 
-    trafilatura_config = trafilatura.settings.use_config()  # type: ignore
+    trafilatura_config = trafilatura.settings.use_config()  # type: ignore[unused-ignore]
     # disable signal, so it can run in a worker thread
     # https://github.com/adbar/trafilatura/issues/202
-    trafilatura_config.set("DEFAULT", "EXTRACTION_TIMEOUT", "0")
+    trafilatura_config.set("DEFAULT", "EXTRACTION_TIMEOUT", "0")  # type: ignore[unused-ignore]
     return (
         trafilatura.extract(html, config=trafilatura_config)
         or BeautifulSoup(html, "html.parser").get_text()
@@ -92,11 +92,11 @@ class Settings(BaseSettings):
         description="The OpenAI model to use for creating embeddings.",
     )
 
-    chroma: ChromaSettings = Field(default_factory=ChromaSettings)  # type: ignore
+    chroma: ChromaSettings = Field(default_factory=ChromaSettings)  # type: ignore[unused-ignore]
 
     @field_validator("log_level", mode="after")
     @classmethod
-    def set_log_level(cls, v):
+    def set_log_level(cls, v: str) -> str:
         from raggy.utilities.logging import setup_logging
 
         setup_logging(level=v)

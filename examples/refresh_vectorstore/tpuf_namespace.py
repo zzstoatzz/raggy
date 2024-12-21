@@ -7,8 +7,10 @@
 
 import os
 from datetime import timedelta
+from typing import Any, Sequence
 
 from prefect import flow, task
+from prefect.context import TaskRunContext
 from prefect.tasks import task_input_hash
 from prefect.utilities.annotations import quote
 
@@ -58,7 +60,9 @@ loaders = {
 }
 
 
-def _cache_key_with_invalidation(context, parameters):
+def _cache_key_with_invalidation(
+    context: TaskRunContext, parameters: dict[str, Any]
+) -> str:
     return f"{task_input_hash(context, parameters)}:{os.getenv("RAGGY_CACHE_VERSION", "0")}"
 
 
@@ -81,7 +85,7 @@ async def run_loader(loader: Loader) -> list[Document]:
 )
 def refresh_tpuf_namespace(
     namespace: str,
-    namespace_loaders: list[Loader],
+    namespace_loaders: Sequence[Loader],
     reset: bool = False,
     batch_size: int = 100,
     max_concurrent: int = 8,
@@ -89,8 +93,8 @@ def refresh_tpuf_namespace(
     """Flow updating vectorstore with info from the Prefect community."""
     documents: list[Document] = [
         doc
-        for future in run_loader.map(quote(namespace_loaders))
-        for doc in future.result()
+        for future in run_loader.map(quote(namespace_loaders))  # type: ignore
+        for doc in future.result()  # type: ignore
     ]
 
     print(f"Loaded {len(documents)} documents from the Prefect community.")
@@ -100,8 +104,10 @@ def refresh_tpuf_namespace(
             task(tpuf.reset)()
             print(f"RESETTING: Deleted all documents from tpuf ns {namespace!r}.")
 
-        task(tpuf.upsert_batched).submit(
-            documents=documents, batch_size=batch_size, max_concurrent=max_concurrent
+        task(tpuf.upsert_batched).submit(  # type: ignore
+            documents=documents,
+            batch_size=batch_size,
+            max_concurrent=max_concurrent,
         ).wait()
 
     print(f"Updated tpuf ns {namespace!r} with {len(documents)} documents.")

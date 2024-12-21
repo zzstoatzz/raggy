@@ -11,10 +11,12 @@ import asyncio
 import re
 import warnings
 from datetime import timedelta
+from typing import Any
 
 import httpx
-from marvin.beta.assistants import Assistant
+from marvin.beta.assistants import Assistant  # type: ignore
 from prefect import flow, task
+from prefect.context import TaskRunContext
 from rich.status import Status
 
 from raggy.documents import Document
@@ -24,7 +26,9 @@ from raggy.vectorstores.tpuf import TurboPuffer, multi_query_tpuf
 TPUF_NS = "demo"
 
 
-def get_last_modified(context, parameters):
+def get_last_modified(
+    context: TaskRunContext, parameters: dict[str, Any]
+) -> str | None:
     """Cache based on Last-Modified header of the first URL."""
     try:
         with httpx.Client() as client:
@@ -40,14 +44,14 @@ def get_last_modified(context, parameters):
     cache_expiration=timedelta(hours=24),
 )
 async def gather_documents(
-    urls: list[str], exclude: list[str | re.Pattern] | None = None
+    urls: list[str], exclude: list[str | re.Pattern[str]] | None = None
 ) -> list[Document]:
     return await SitemapLoader(urls=urls, exclude=exclude or []).load()
 
 
 @flow(flow_run_name="{urls}")
 async def ingest_website(
-    urls: list[str], exclude: list[str | re.Pattern] | None = None
+    urls: list[str], exclude: list[str | re.Pattern[str]] | None = None
 ):
     """Ingest a website into the vector database.
 
@@ -55,10 +59,10 @@ async def ingest_website(
         urls: The URLs to ingest (exact or glob patterns).
         exclude: The URLs to exclude (exact or glob patterns).
     """
-    documents = await gather_documents(urls, exclude)
+    documents: list[Document] = await gather_documents(urls, exclude)  # type: ignore
     with TurboPuffer(namespace=TPUF_NS) as tpuf:
-        print(f"Upserting {len(documents)} documents into {TPUF_NS}")
-        await tpuf.upsert_batched(documents)
+        print(f"Upserting {len(documents)} documents into {TPUF_NS}")  # type: ignore
+        await tpuf.upsert_batched(documents)  # type: ignore
 
 
 @task(task_run_name="querying: {query_texts}")
@@ -92,7 +96,7 @@ async def chat_with_website(initial_message: str | None = None, clean_up: bool =
                 ingest_website,
                 do_research,
             ],
-        ) as assistant:
+        ) as assistant:  # type: ignore
             assistant.chat(initial_message=initial_message)  # type: ignore
 
     finally:

@@ -1,14 +1,13 @@
 import asyncio
 import inspect
 from functools import partial
-from typing import Annotated, Callable
+from typing import Annotated, Any, Self
 
 from jinja2 import Environment, Template
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    PrivateAttr,
     field_validator,
     model_validator,
 )
@@ -37,24 +36,25 @@ class Document(BaseModel):
 
     id: str = Field(default_factory=partial(generate_prefixed_uuid, "doc"))
     text: str = Field(..., description="Document text content.")
+    parent_document_id: str | None = Field(default=None)
 
     embedding: list[float] | None = Field(default=None)
-    metadata: DocumentMetadata | dict = Field(default_factory=DocumentMetadata)
+    metadata: DocumentMetadata | dict[str, Any] = Field(
+        default_factory=DocumentMetadata
+    )
 
     tokens: int | None = Field(default=None)
     keywords: list[str] = Field(default_factory=list)
 
-    _parent_document_id: str | None = PrivateAttr(default=None)
-
     @field_validator("metadata", mode="before")
     @classmethod
-    def ensure_metadata(cls, v):
+    def ensure_metadata(cls, v: dict[str, Any] | DocumentMetadata) -> DocumentMetadata:
         if isinstance(v, dict):
             return DocumentMetadata(**v)
         return v
 
     @model_validator(mode="after")
-    def ensure_tokens(self):
+    def ensure_tokens(self) -> Self:
         if self.tokens is None:
             self.tokens = count_tokens(self.text)
         return self
@@ -85,8 +85,7 @@ async def document_to_excerpts(
     excerpt_template: Template | None = None,
     chunk_tokens: int = 300,
     overlap: Annotated[float, Field(strict=True, ge=0, le=1)] = 0.1,
-    split_text_fn: Callable[..., list[str]] = split_text,
-    **extra_template_kwargs,
+    **extra_template_kwargs: Any,
 ) -> list[Document]:
     """
     Create document excerpts by chunking the document text into regularly-sized
@@ -96,12 +95,12 @@ async def document_to_excerpts(
         excerpt_template: A jinja2 template to use for rendering the excerpt.
         chunk_tokens: The number of tokens to include in each excerpt.
         overlap: The fraction of overlap between each excerpt.
-
+        extra_template_kwargs: Additional kwargs to pass to the template.
     """
     if not excerpt_template:
         excerpt_template = EXCERPT_TEMPLATE
 
-    text_chunks: list[str] = split_text_fn(
+    text_chunks: list[str] = split_text(
         text=document.text,
         chunk_size=chunk_tokens,
         chunk_overlap=overlap,
@@ -112,11 +111,10 @@ async def document_to_excerpts(
             _create_excerpt(
                 document=document,
                 text=text,
-                index=i,
                 excerpt_template=excerpt_template,
                 **extra_template_kwargs,
             )
-            for i, text in enumerate(text_chunks)
+            for text in text_chunks
         ]
     )
 
@@ -125,7 +123,7 @@ async def _create_excerpt(
     document: Document,
     text: str,
     excerpt_template: Template,
-    **extra_template_kwargs,
+    **extra_template_kwargs: Any,
 ) -> Document:
     keywords = extract_keywords(text)
 
@@ -136,7 +134,7 @@ async def _create_excerpt(
         **extra_template_kwargs,
     )
     return Document(
-        _parent_document_id=document.id,  # type: ignore[reportCallIssue]
+        parent_document_id=document.id,
         text=excerpt_text,
         keywords=keywords,
         metadata=document.metadata if document.metadata else {},

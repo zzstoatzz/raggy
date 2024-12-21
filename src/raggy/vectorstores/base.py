@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 from raggy.utilities.logging import RaggyLogger, get_logger
@@ -36,5 +38,5 @@ class Vectorstore(BaseModel):
         self._in_context = True
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any):
         self._in_context = False

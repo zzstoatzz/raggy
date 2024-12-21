@@ -19,7 +19,8 @@ from raggy.utilities.filesystem import OPEN_FILE_CONCURRENCY, multi_glob
 from raggy.utilities.text import rm_html_comments, rm_text_after
 
 
-async def read_file_with_chardet(file_path, errors="replace"):
+async def read_file_with_chardet(file_path: str | Path, errors: str = "replace") -> str:
+    """Read a file with chardet to detect encoding."""
     async with aiofiles.open(file_path, "rb") as f:
         content = await f.read()
         encoding = chardet.detect(content)["encoding"]
@@ -77,7 +78,7 @@ class GitHubIssueLoader(Loader):
             A list of dictionaries, each representing a comment.
         """
         url = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
-        comments = []
+        comments: list[GitHubComment] = []
         page = 1
         async with httpx.AsyncClient() as client:
             while True:
@@ -101,7 +102,7 @@ class GitHubIssueLoader(Loader):
 
         Returns:
             A list of `GitHubIssue` objects, each representing an issue.
-        """  # noqa: E501
+        """
         url = f"https://api.github.com/repos/{self.repo}/issues"
         issues: list[GitHubIssue] = []
         page = 1
@@ -131,7 +132,7 @@ class GitHubIssueLoader(Loader):
         Returns:
             A list of `Document` objects, each representing an issue.
         """
-        documents = []
+        documents: list[Document] = []
         for issue in await self._get_issues():
             self.logger.debug(f"Found {issue.title!r}")
             clean_issue_body = rm_text_after(
@@ -195,7 +196,7 @@ class GitHubRepoLoader(Loader):
     exclude_globs: list[str] | None = Field(default=None)
 
     @field_validator("repo")
-    def validate_repo(cls, v):
+    def validate_repo(cls, v: str) -> str:
         if not re.match(r"^[^/\s]+/[^/\s]+$", v):
             raise ValueError(
                 "Must provide a GitHub repository in the format 'owner/repo'"
@@ -213,16 +214,14 @@ class GitHubRepoLoader(Loader):
                 )
 
                 if (await process.wait()) != 0:
-                    raise OSError(
-                        f"Failed to clone repository:\n {await process.stderr.read() if process.stderr else ''}"
-                    )
+                    stderr = await process.stderr.read() if process.stderr else b""
+                    raise OSError(f"Failed to clone repository:\n {stderr.decode()}")
 
-                self.logger.debug(
-                    f"{await process.stdout.read() if process.stdout else ''}"
-                )
+                stdout = await process.stdout.read() if process.stdout else b""
+                self.logger.debug(stdout.decode())
 
                 # Read the contents of each file that matches the glob pattern
-                documents = []
+                documents: list[Document] = []
 
                 for file in multi_glob(tmp_dir, self.include_globs, self.exclude_globs):
                     self.logger.info(f"Loading file: {file!r}")

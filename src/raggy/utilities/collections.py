@@ -41,7 +41,7 @@ def distinct(
         ]
         ```
     """
-    seen: set = set()
+    seen: set[T] = set()
     for item in iterable:
         if key(item) in seen:
             continue
