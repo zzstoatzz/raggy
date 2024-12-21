@@ -35,7 +35,7 @@ jobs:
         id: cache-uv
         with:
           path: ~/.cache/uv
-          key: uvcache-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
+          key: uvcache-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('pyproject.toml') }}
 
       - name: Install dependencies
         run: uv sync --dev --all-extras
