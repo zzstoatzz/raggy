@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Any, Callable, ParamSpec, TypeVar
+from typing import Any, Awaitable, Callable, ParamSpec, TypeVar
 
 import anyio
 from anyio import create_task_group, to_thread
@@ -9,16 +9,16 @@ from raggy import settings
 P = ParamSpec("P")
 T = TypeVar("T")
 
-RAGGY_THREAD_LIMITER: anyio.CapacityLimiter | None = None
+_raggy_thread_limiter: anyio.CapacityLimiter | None = None
 
 
 def get_thread_limiter():
-    global RAGGY_THREAD_LIMITER
+    global _raggy_thread_limiter
 
-    if RAGGY_THREAD_LIMITER is None:
-        RAGGY_THREAD_LIMITER = anyio.CapacityLimiter(250)
+    if _raggy_thread_limiter is None:
+        _raggy_thread_limiter = anyio.CapacityLimiter(250)
 
-    return RAGGY_THREAD_LIMITER
+    return _raggy_thread_limiter
 
 
 async def run_sync_in_worker_thread(
@@ -33,21 +33,21 @@ async def run_sync_in_worker_thread(
 
 
 async def run_concurrent_tasks(
-    tasks: list[Callable[P, T]],
+    tasks: list[Awaitable[T]],
     max_concurrent: int = settings.max_concurrent_tasks,
 ) -> list[T]:
     """Run multiple tasks concurrently with a limit on concurrent execution.
 
     Args:
-        tasks: List of async callables to execute
+        tasks: List of awaitables to execute
         max_concurrent: Maximum number of tasks to run concurrently
     """
     semaphore = anyio.Semaphore(max_concurrent)
-    results = []
+    results: list[T] = []
 
-    async def _run_task(task: Callable):
+    async def _run_task(task: Awaitable[T]):
         async with semaphore:
-            result = await task()
+            result = await task
             results.append(result)
 
     async with create_task_group() as tg:

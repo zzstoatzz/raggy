@@ -65,10 +65,10 @@ def refresh_chroma(
     mode: Literal["upsert", "reset"] = "upsert",
 ):
     """Flow updating vectorstore with info from the Prefect community."""
-    documents = [
+    documents: list[Document] = [
         doc
         for future in run_loader.map(prefect_loaders)  # type: ignore
-        for doc in future.result()
+        for doc in future.result()  # type: ignore
     ]
 
     print(f"Loaded {len(documents)} documents from the Prefect community.")

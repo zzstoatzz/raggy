@@ -1,13 +1,14 @@
-from typing import Awaitable, Callable, Sequence
+import asyncio
+from typing import Sequence
 
 import turbopuffer as tpuf
 from prefect.utilities.asyncutils import run_coro_as_sync
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from turbopuffer.query import Filters
 from turbopuffer.vectors import VectorResult
 
 from raggy.documents import Document
-from raggy.utilities.asyncutils import run_concurrent_tasks
 from raggy.utilities.embeddings import create_openai_embeddings
 from raggy.utilities.text import slice_tokens
 from raggy.vectorstores.base import Vectorstore
@@ -75,7 +76,7 @@ class TurboPuffer(Vectorstore):
         documents: Sequence[Document] | None = None,
         ids: list[str] | list[int] | None = None,
         vectors: list[list[float]] | None = None,
-        attributes: dict | None = None,
+        attributes: dict[str, list[str | int | None]] | None = None,
     ):
         attributes = attributes or {}
         _vectors = vectors or []
@@ -85,12 +86,10 @@ class TurboPuffer(Vectorstore):
 
         if documents:
             ids = [document.id for document in documents]
-            _vectors = run_coro_as_sync(
+            _vectors: list[list[float]] = run_coro_as_sync(
                 create_openai_embeddings([document.text for document in documents])
             )
             assert _vectors is not None
-            if not isinstance(_vectors[0], list):
-                _vectors = [_vectors]
             if attributes.get("text"):
                 raise ValueError(
                     "The `text` attribute is reserved and cannot be used as a custom attribute."
@@ -106,7 +105,7 @@ class TurboPuffer(Vectorstore):
         vector: list[float] | None = None,
         top_k: int = 10,
         distance_metric: str = "cosine_distance",
-        filters: dict | None = None,
+        filters: Filters | None = None,
         include_attributes: list[str] | None = None,
         include_vectors: bool = False,
     ) -> VectorResult:
@@ -115,7 +114,7 @@ class TurboPuffer(Vectorstore):
         elif vector is None:
             raise ValueError("Either `text` or `vector` must be provided.")
 
-        return self.ns.query(
+        return self.ns.query(  # type: ignore
             vector=vector,
             top_k=top_k,
             distance_metric=distance_metric,
@@ -150,7 +149,7 @@ class TurboPuffer(Vectorstore):
         documents: Sequence[Document],
         batch_size: int = 100,
         max_concurrent: int = 8,
-    ):
+    ) -> None:
         """Upsert documents in batches concurrently.
 
         Args:
@@ -164,32 +163,28 @@ class TurboPuffer(Vectorstore):
             for i in range(0, len(document_list), batch_size)
         ]
 
-        # Create tasks that will run concurrently
-        tasks: list[Callable[[], Awaitable[None]]] = []
-        for i, batch in enumerate(batches):
+        async def _upsert(batch: list[Document], batch_num: int) -> None:
+            texts = [doc.text for doc in batch]
+            self.ns.upsert(  # type: ignore
+                ids=[doc.id for doc in batch],
+                vectors=await create_openai_embeddings(texts),
+                attributes={"text": texts},  # type: ignore
+            )
+            self.logger.debug_kv(
+                "Upserted",
+                f"Batch {batch_num + 1}/{len(batches)} ({len(batch)} documents)",
+            )
 
-            async def _upsert(b=batch, n=i):
-                texts = [doc.text for doc in b]
-                embeddings = await create_openai_embeddings(texts)
-
-                self.ns.upsert(
-                    ids=[doc.id for doc in b],
-                    vectors=embeddings,
-                    attributes={"text": texts},
-                )
-                self.logger.debug_kv(
-                    "Upserted",
-                    f"Batch {n + 1}/{len(batches)} ({len(b)} documents)",
-                )
-
-            tasks.append(_upsert)
-
-        await run_concurrent_tasks(tasks, max_concurrent=max_concurrent)
+        for i in range(0, len(batches), max_concurrent):
+            batch_group = batches[i : i + max_concurrent]
+            await asyncio.gather(
+                *[_upsert(batch, i + j) for j, batch in enumerate(batch_group)]
+            )
 
 
 def query_namespace(
     query_text: str,
-    filters: dict | None = None,
+    filters: Filters | None = None,
     namespace: str = "raggy",
     top_k: int = 10,
     max_tokens: int = 500,
@@ -204,7 +199,7 @@ def query_namespace(
         assert vector_result.data is not None, "No data found"
 
         concatenated_result = "\n".join(
-            row.attributes["text"]  # type: ignore
+            str(row.attributes["text"]) if row.attributes else ""
             for row in vector_result.data
         )
 

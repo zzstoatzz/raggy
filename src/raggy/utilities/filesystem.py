@@ -2,6 +2,7 @@ import asyncio
 import math
 import os
 from pathlib import Path
+from typing import cast
 
 
 def multi_glob(
@@ -78,7 +79,7 @@ def get_open_file_limit() -> int:
         if os.name == "nt":
             import ctypes
 
-            return ctypes.cdll.ucrtbase._getmaxstdio()
+            return cast(int, ctypes.cdll.ucrtbase._getmaxstdio())
         else:
             import resource
 

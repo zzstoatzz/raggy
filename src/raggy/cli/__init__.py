@@ -2,19 +2,18 @@ import argparse
 import os
 import sys
 import asyncio
-from datetime import datetime, timezone
 from pathlib import Path
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
+from pydantic_ai.models import ModelMessage
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.live import Live
 from rich.markdown import CodeBlock, Markdown
-from rich.status import Status
 from rich.syntax import Syntax
 from rich.text import Text
 
-from pydantic_ai import Agent, result as pa_result
+from pydantic_ai import Agent
 
 
 # Prettify code fences with Rich
@@ -67,19 +66,19 @@ Special prompts:
         return 1
 
     # Create your agent; we set a global system prompt
-    agent = Agent(
+    agent: Agent[None, str] = Agent(
         "openai:gpt-4o",
         system_prompt="Be a helpful assistant and respond in concise markdown.",
     )
 
     # We'll accumulate the conversation in here (both user and assistant messages)
-    conversation = None
+    conversation: list[ModelMessage] = []
     stream = not args.no_stream
 
     # If the user supplied a single prompt, just run once
     if args.prompt:
         try:
-            asyncio.run(
+            conversation = asyncio.run(
                 run_and_display(agent, args.prompt, conversation, stream, console)
             )
         except KeyboardInterrupt:
@@ -88,7 +87,7 @@ Special prompts:
 
     # Otherwise, interactive mode with prompt_toolkit
     history = Path.home() / ".openai-prompt-history.txt"
-    session = PromptSession(history=FileHistory(str(history)))
+    session = PromptSession[str](history=FileHistory(str(history)))
     multiline = False
 
     while True:
@@ -151,7 +150,11 @@ Special prompts:
 
 
 async def run_and_display(
-    agent: Agent, user_text: str, conversation, stream: bool, console: Console
+    agent: Agent[None, str],
+    user_text: str,
+    conversation: list[ModelMessage],
+    stream: bool,
+    console: Console,
 ):
     """
     Runs the agent (stream or not) with user_text, returning the updated conversation.

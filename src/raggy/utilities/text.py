@@ -68,7 +68,7 @@ def extract_keywords(text: str) -> list[str]:
         features=None,
     )
 
-    return [k[0] for k in kw.extract_keywords(text)]
+    return [k[0] for k in kw.extract_keywords(text)]  # type: ignore
 
 
 @lru_cache(maxsize=2048)
@@ -228,7 +228,7 @@ def split_text(
 
     tokens = tokenize(text)
 
-    chunks = []
+    chunks: list[tuple[list[int], int]] = []
     for i in range(0, len(tokens), chunk_size - int(chunk_overlap * chunk_size)):
         chunks.append((tokens[i : i + chunk_size], len(detokenize(tokens[:i]))))
 

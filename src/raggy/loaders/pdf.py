@@ -22,7 +22,7 @@ async def download_url_content(url: str) -> bytes:
         return response.content
 
 
-def is_valid_url(url):
+def is_valid_url(url: str) -> bool:
     parsed = urlparse(url)
     return bool(parsed.netloc) and bool(parsed.scheme)
 

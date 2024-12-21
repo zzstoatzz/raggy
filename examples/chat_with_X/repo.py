@@ -9,10 +9,12 @@
 
 import asyncio
 import warnings
+from typing import Any
 
 import httpx
-from marvin.beta.assistants import Assistant
+from marvin.beta.assistants import Assistant  # type: ignore
 from prefect import flow, task
+from prefect.context import TaskRunContext
 from rich.status import Status
 
 from raggy.documents import Document
@@ -22,7 +24,9 @@ from raggy.vectorstores.tpuf import TurboPuffer, multi_query_tpuf
 TPUF_NS = "demo"
 
 
-def get_last_commit_sha(context, parameters) -> str | None:
+def get_last_commit_sha(
+    context: TaskRunContext, parameters: dict[str, Any]
+) -> str | None:
     """Cache based on Last-Modified header of the first URL."""
     try:
         return httpx.get(
@@ -47,10 +51,10 @@ async def ingest_repo(repo: str):
     Args:
         repo: The repository to ingest (format: "owner/repo").
     """
-    documents = await gather_documents(repo)
+    documents: list[Document] = await gather_documents(repo)  # type: ignore
     with TurboPuffer(namespace=TPUF_NS) as tpuf:
-        print(f"Upserting {len(documents)} documents into {TPUF_NS}")
-        await task(tpuf.upsert_batched)(documents)
+        print(f"Upserting {len(documents)} documents into {TPUF_NS}")  # type: ignore
+        await task(tpuf.upsert_batched)(documents)  # type: ignore
 
 
 @task(task_run_name="querying: {query_texts}")
@@ -84,7 +88,7 @@ async def chat_with_repo(initial_message: str | None = None, clean_up: bool = Tr
                 ingest_repo,
                 do_research,
             ],
-        ) as assistant:
+        ) as assistant:  # type: ignore
             assistant.chat(initial_message=initial_message)  # type: ignore
 
     finally:

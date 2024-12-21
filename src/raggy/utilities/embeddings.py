@@ -33,7 +33,7 @@ async def create_openai_embeddings(
     wait=wait_fixed(2),
 )
 async def create_openai_embeddings(
-    input_: str | list[str],
+    input_: str | list[str] | Any,
     timeout: int = 60,
     model: str = raggy.settings.openai_embeddings_model,
 ) -> Embedding | list[Embedding]:
@@ -70,16 +70,16 @@ async def create_openai_embeddings(
         ])
         ```
     """
-
+    _input: str | list[str] = input_
     if isinstance(input_, str):
-        input_ = [input_]
+        _input = [input_]
     elif not isinstance(input_, list):
         raise TypeError(
             f"Expected input to be a str or a list of str, got {type(input_).__name__}."
         )
 
     embedding: CreateEmbeddingResponse = await AsyncOpenAI().embeddings.create(
-        input=input_, model=model, timeout=timeout
+        input=_input, model=model, timeout=timeout
     )
 
     if len(embedding.data) == 1:

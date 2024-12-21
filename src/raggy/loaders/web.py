@@ -1,6 +1,6 @@
 import asyncio
 import re
-from typing import Callable, Self
+from typing import Callable, Self, cast
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
@@ -16,27 +16,31 @@ from raggy.utilities.collections import batched
 user_agent = UserAgent()
 
 
-def ensure_http(url):
+def ensure_http(url: str) -> str:
     if not url.startswith(("http://", "https://")):
         return "http://" + url
     return url
 
 
-async def sitemap_search(sitemap_url) -> list[str]:
+async def sitemap_search(sitemap_url: str) -> list[str]:
     async with AsyncClient() as client:
         response = await client.get(sitemap_url, follow_redirects=True)
         response.raise_for_status()
 
     soup = BeautifulSoup(response.text, "xml")
-    return [loc.text for loc in soup.find_all("loc")]
+    return [loc.text for loc in soup.find_all("loc")]  # type: ignore
 
 
 class WebLoader(Loader):
     document_type: str = "web page"
-    headers: dict = Field(default_factory=dict, repr=False)
+    headers: dict[str, str] = Field(default_factory=dict, repr=False)
 
-    async def get_headers(self) -> dict:
-        return {"User-Agent": user_agent.random, **self.headers}
+    @property
+    def user_agent(self) -> str:
+        return cast(str, user_agent.random)  # type: ignore
+
+    async def get_headers(self) -> dict[str, str]:
+        return {"User-Agent": self.user_agent, **self.headers}
 
 
 class URLLoader(WebLoader):
@@ -58,7 +62,7 @@ class URLLoader(WebLoader):
             headers=headers, timeout=30, follow_redirects=True
         ) as client:
 
-            async def load_url_task(url) -> list[Document]:
+            async def load_url_task(url: str) -> list[Document]:
                 try:
                     doc = await self.load_url(url, client)
                     if doc is not None:
@@ -73,9 +77,9 @@ class URLLoader(WebLoader):
             tasks = [load_url_task(url) for url in self.urls]
             document_lists = await asyncio.gather(*tasks)
 
-        return [doc for docs in document_lists for doc in docs if doc is not None]
+        return [doc for docs in document_lists for doc in docs]
 
-    async def load_url(self, url, client) -> Document | None:
+    async def load_url(self, url: str, client: AsyncClient) -> Document | None:
         response = await client.get(url, follow_redirects=True)
 
         if not response.status_code == 200:
@@ -85,11 +89,11 @@ class URLLoader(WebLoader):
 
         # check for a meta refresh redirect in the response content
         soup = BeautifulSoup(response.text, "html.parser")
-        meta_refresh = soup.find(
+        meta_refresh = soup.find(  # type: ignore
             "meta", attrs={"http-equiv": re.compile(r"refresh", re.I)}
         )
         if meta_refresh and isinstance(meta_refresh, Tag):
-            content = meta_refresh.get("content", "")
+            content = meta_refresh.get("content", "")  # type: ignore
             if isinstance(content, str):
                 redirect_url_match = re.search(r"url=([\S]+)", content, re.I)
                 if redirect_url_match:
@@ -141,8 +145,8 @@ class SitemapLoader(URLLoader):
         create_excerpts: Whether to split documents into excerpts. Defaults to True.
     """
 
-    include: list[str | re.Pattern] = Field(default_factory=list)
-    exclude: list[str | re.Pattern] = Field(default_factory=list)
+    include: list[str | re.Pattern[str]] = Field(default_factory=list)
+    exclude: list[str | re.Pattern[str]] = Field(default_factory=list)
     url_loader: URLLoader = Field(default_factory=HTMLLoader)
     url_processor: Callable[[str], str] = lambda x: x  # noqa: E731
     create_excerpts: bool = Field(default=True)

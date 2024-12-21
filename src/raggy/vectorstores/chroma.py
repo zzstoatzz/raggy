@@ -1,10 +1,18 @@
-from typing import Literal, Sequence
+from typing import Any, Awaitable, Literal, Sequence
 
 from chromadb import Client, CloudClient, HttpClient, Include
 from chromadb.api import ClientAPI
 from chromadb.api.models.Collection import Collection
 from chromadb.api.models.Collection import Document as ChromaDocument
-from chromadb.api.types import Embedding, OneOrMany, PyEmbedding, QueryResult
+from chromadb.api.types import (
+    Embedding,
+    OneOrMany,
+    PyEmbedding,
+    QueryResult,
+    Where,
+    WhereDocument,
+)
+from chromadb.types import Metadata
 from chromadb.utils.batch_utils import create_batches
 from prefect.utilities.asyncutils import run_coro_as_sync
 
@@ -50,8 +58,8 @@ class Chroma(Vectorstore):
     def delete(
         self,
         ids: list[str] | None = None,
-        where: dict | None = None,
-        where_document: ChromaDocument | None = None,
+        where: Where | None = None,
+        where_document: WhereDocument | None = None,
     ):
         self.collection.delete(
             ids=ids,
@@ -59,28 +67,24 @@ class Chroma(Vectorstore):
             where_document=where_document,  # type: ignore
         )
 
-    def add(self, documents: Sequence[RaggyDocument]) -> list[ChromaDocument]:
+    def add(self, documents: list[RaggyDocument]) -> list[ChromaDocument]:
         ids = [doc.id for doc in documents]
         texts = [doc.text for doc in documents]
-        metadatas = [
+        metadatas: list[Metadata] = [
             doc.metadata.model_dump(exclude_none=True)
             if isinstance(doc.metadata, DocumentMetadata)
-            else None
+            else {}
             for doc in documents
         ]
 
         embeddings = run_coro_as_sync(create_openai_embeddings(texts))
 
-        data = {
-            "ids": ids,
-            "documents": texts,
-            "metadatas": metadatas,
-            "embeddings": embeddings,
-        }
-
-        batched_data: list[tuple] = create_batches(
+        batched_data = create_batches(
             get_client(self.client_type),
-            **data,
+            ids=ids,
+            documents=texts,
+            metadatas=metadatas,
+            embeddings=embeddings,
         )
 
         for batch in batched_data:
@@ -94,10 +98,10 @@ class Chroma(Vectorstore):
         query_embeddings: OneOrMany[Embedding] | OneOrMany[PyEmbedding] | None = None,
         query_texts: list[str] | None = None,
         n_results: int = 10,
-        where: dict | None = None,
-        where_document: dict | None = None,
+        where: dict[str, Any] | None = None,
+        where_document: WhereDocument | None = None,
         include: Include = ["metadatas"],  # type: ignore
-        **kwargs,
+        **kwargs: Any,
     ) -> QueryResult:
         return self.collection.query(
             query_embeddings=(
@@ -170,16 +174,16 @@ class Chroma(Vectorstore):
         ]
 
         # Create tasks that will run concurrently
-        tasks = []
+        tasks: list[Awaitable[Any]] = []
         for i, batch in enumerate(batches):
 
-            async def _upsert(b=batch, n=i):
+            async def _upsert(b: list[RaggyDocument], n: int):
                 # Get embeddings for the entire batch at once
                 texts = [doc.text for doc in b]
                 embeddings = await create_openai_embeddings(texts)
 
                 # Prepare the batch data
-                kwargs = dict(
+                kwargs: dict[str, Any] = dict(
                     ids=[doc.id for doc in b],
                     documents=texts,
                     metadatas=[
@@ -198,7 +202,7 @@ class Chroma(Vectorstore):
                     f"Batch {n + 1}/{len(batches)} ({len(b)} documents)",
                 )
 
-            tasks.append(_upsert)
+            tasks.append(_upsert(batch, i))
 
         await run_concurrent_tasks(tasks, max_concurrent=max_concurrent)
 
@@ -207,8 +211,8 @@ def query_collection(
     query_text: str,
     collection_name: str = "raggy",
     top_k: int = 10,
-    where: dict | None = None,
-    where_document: dict | None = None,
+    where: Where | None = None,
+    where_document: WhereDocument | None = None,
     max_tokens: int = 500,
     client_type: ChromaClientType = "base",
 ) -> str:
