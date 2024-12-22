@@ -47,6 +47,22 @@ loaders = {
             repo="PrefectHQ/prefect",
             include_globs=["flows/"],
         ),
+        GitHubRepoLoader(
+            repo="PrefectHQ/prefect",
+            include_globs=["src/prefect/*.py"],
+        ),
+        GitHubRepoLoader(
+            repo="PrefectHQ/prefect-background-task-examples",
+            include_globs=["**/*.py", "**/*.md"],
+        ),
+        GitHubRepoLoader(
+            repo="zzstoatzz/prefect-pack",
+            include_globs=["**/*.py", "**/*.md"],
+        ),
+        GitHubRepoLoader(
+            repo="zzstoatzz/prefect-monorepo",
+            include_globs=["**/*.py", "**/*.md", "**/*.yaml"],
+        ),
     ],
     "controlflow": [
         SitemapLoader(
@@ -97,7 +113,7 @@ def refresh_tpuf_namespace(
         for doc in future.result()  # type: ignore
     ]
 
-    print(f"Loaded {len(documents)} documents from the Prefect community.")
+    print(f"Gathered {len(documents)} documents from the Prefect community.")
 
     with TurboPuffer(namespace=namespace) as tpuf:
         if reset:

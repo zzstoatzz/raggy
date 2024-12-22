@@ -194,6 +194,8 @@ class GitHubRepoLoader(Loader):
     repo: str = Field(...)
     include_globs: list[str] | None = Field(default=None)
     exclude_globs: list[str] | None = Field(default=None)
+    chunk_size: int = Field(default=500)
+    overlap: float = Field(default=0.1)
 
     @field_validator("repo")
     def validate_repo(cls, v: str) -> str:
@@ -243,7 +245,10 @@ class GitHubRepoLoader(Loader):
                             Document(
                                 text=await read_file_with_chardet(Path(tmp_dir) / file),
                                 metadata=metadata,
-                            )
+                            ),
+                            chunk_size=self.chunk_size,
+                            overlap=self.overlap,
                         )
                     )
                 return documents
+
