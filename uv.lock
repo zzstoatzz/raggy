@@ -3161,7 +3161,7 @@ wheels = [
 
 [[package]]
 name = "raggy"
-version = "0.2.5.dev10+g7391dc2.d20241221"
+version = "0.2.5.dev11+g607db51"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

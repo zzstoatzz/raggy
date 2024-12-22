@@ -79,25 +79,29 @@ class TurboPuffer(Vectorstore):
         attributes: dict[str, list[str | int | None]] | None = None,
     ):
         attributes = attributes or {}
-        _vectors = vectors or []
 
         if documents is None and vectors is None:
             raise ValueError("Either `documents` or `vectors` must be provided.")
 
         if documents:
             ids = [document.id for document in documents]
-            _vectors: list[list[float]] = run_coro_as_sync(
-                create_openai_embeddings([document.text for document in documents])
+            texts = [document.text for document in documents]
+            embeddings = run_coro_as_sync(create_openai_embeddings(texts))
+            assert embeddings is not None and isinstance(
+                embeddings, list
+            ), "embeddings cannot be none"
+            vectors = (
+                [embeddings] if not isinstance(embeddings[0], list) else embeddings
             )
-            assert _vectors is not None
             if attributes.get("text"):
                 raise ValueError(
                     "The `text` attribute is reserved and cannot be used as a custom attribute."
                 )
-            attributes |= {"text": [document.text for document in documents]}
+            attributes |= {"text": [str(t) for t in texts]}
 
         assert ids is not None, "ids cannot be none"
-        self.ns.upsert(ids=ids, vectors=_vectors, attributes=attributes)  # type: ignore
+        assert vectors is not None, "vectors cannot be none"
+        self.ns.upsert(ids=ids, vectors=vectors, attributes=attributes)  # type: ignore
 
     def query(
         self,
