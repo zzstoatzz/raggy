@@ -28,11 +28,10 @@ a simple-to-use Python library for:
 > [!TIP]
 > See this [example](https://github.com/zzstoatzz/raggy/blob/main/examples/chat_with_X/website.py) to chat with any website, or this [example](https://github.com/zzstoatzz/raggy/blob/main/examples/chat_with_X/repo.py) to chat with any GitHub repo.
 
-### license and dependencies
+### license 
 
-> [!IMPORTANT]
-> This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+this project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
 
 ### contributing
 
-I would welcome contributions! See the [contributing guide](https://zzstoatzz.github.io/raggy/contributing) for details.
+I welcome contributions! See the [contributing guide](https://zzstoatzz.github.io/raggy/contributing) for details.
