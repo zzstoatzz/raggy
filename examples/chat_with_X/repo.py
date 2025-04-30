@@ -12,7 +12,7 @@ import warnings
 from typing import Any
 
 import httpx
-from marvin.beta.assistants import Assistant  # type: ignore
+import marvin
 from prefect import flow, task
 from prefect.context import TaskRunContext
 from rich.status import Status
@@ -40,21 +40,27 @@ def get_last_commit_sha(
     task_run_name="load documents from {repo}",
     cache_key_fn=get_last_commit_sha,
 )
-async def gather_documents(repo: str) -> list[Document]:
-    return await GitHubRepoLoader(repo=repo).load()
+async def gather_documents(
+    repo: str,
+    include_globs: list[str] | None = None,
+    exclude_globs: list[str] | None = None,
+) -> list[Document]:
+    return await GitHubRepoLoader(
+        repo=repo, include_globs=include_globs, exclude_globs=exclude_globs
+    ).load()
 
 
 @flow(flow_run_name="{repo}")
-async def ingest_repo(repo: str):
+def ingest_repo(repo: str):
     """Ingest a GitHub repository into the vector database.
 
     Args:
         repo: The repository to ingest (format: "owner/repo").
     """
-    documents: list[Document] = await gather_documents(repo)  # type: ignore
+    documents: list[Document] = gather_documents.submit(repo).result()
     with TurboPuffer(namespace=TPUF_NS) as tpuf:
-        print(f"Upserting {len(documents)} documents into {TPUF_NS}")  # type: ignore
-        await task(tpuf.upsert_batched)(documents)  # type: ignore
+        print(f"Upserting {len(documents)} documents into {TPUF_NS}")
+        task(tpuf.upsert_batched).submit(documents).wait()
 
 
 @task(task_run_name="querying: {query_texts}")
@@ -74,9 +80,9 @@ def do_research(query_texts: list[str]):
 
 
 @flow(log_prints=True)
-async def chat_with_repo(initial_message: str | None = None, clean_up: bool = True):
+async def chat_with_repo(initial_message: str, clean_up: bool = True):
     try:
-        with Assistant(
+        agent = marvin.Agent(
             model="gpt-4o",
             name="Repo Researcher",
             instructions=(
@@ -88,8 +94,17 @@ async def chat_with_repo(initial_message: str | None = None, clean_up: bool = Tr
                 ingest_repo,
                 do_research,
             ],
-        ) as assistant:  # type: ignore
-            assistant.chat(initial_message=initial_message)  # type: ignore
+        )
+
+        result = await agent.run_async(initial_message)
+        print(result)
+
+        while True:
+            user_input = input("User: ")
+            if user_input == "exit":
+                break
+            result = await agent.run_async(user_input)
+            print(result)
 
     finally:
         if clean_up:
@@ -108,4 +123,5 @@ if __name__ == "__main__":
     else:
         initial_message = "lets chat about zzstoatzz/raggy - please ingest it and tell me how to contribute"
 
-    asyncio.run(chat_with_repo(initial_message))
+    with marvin.Thread():
+        asyncio.run(chat_with_repo(initial_message))

@@ -15,37 +15,29 @@ git clone https://github.com/zzstoatzz/raggy.git
 cd raggy
 
 # Create and activate a virtual environment
-uv venv
+uv venv --python 3.12 && source .venv/bin/activate
 
 # Install in editable mode with dev dependencies
-uv pip install -e ".[dev]"
+uv sync -U
 ```
 
 ## Running Tests
 
 ```bash
-# Install test dependencies
-uv pip install -e ".[test]"
-
-# Run tests
-pytest
+uv run pytest
 ```
 
 ## Building Documentation
 
 ```bash
-# Install docs dependencies
-uv pip install -e ".[docs]"
-
-# Serve docs locally
-mkdocs serve
+uv run mkdocs serve
 ```
 
 ## Code Style
 
-```
-pre-commit install
-pre-commit run --all-files # happens automatically on commit
+```bash
+uv run pre-commit install
+uv run pre-commit run --all-files # happens automatically on commit
 ```
 
 ## Running Examples
