@@ -5,14 +5,14 @@ a Python library for scraping and document processing
 ## installation
 
 ```python
-pip install raggy
+uv add raggy
 ```
 
 add extras to load different document types:
 ```python
-pip install raggy[chroma]     # ChromaDB support
-pip install raggy[tpuf]       # TurboPuffer support
-pip install raggy[pdf]        # PDF processing
+uv add 'raggy[chroma]'     # ChromaDB support
+uv add 'raggy[tpuf]'       # TurboPuffer support
+uv add 'raggy[pdf]'        # PDF processing
 ```
 
 read the [docs](https://zzstoatzz.github.io/raggy/)

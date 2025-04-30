@@ -29,7 +29,7 @@ dependencies = [
     "yake",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "ipython",
     "mkdocs-autolinks-plugin~=0.7",
@@ -42,10 +42,6 @@ dev = [
     "pre-commit>=2.21,<4.0",
     "ruff",
     "types-aiofiles",
-    "raggy[tests]",
-]
-
-tests = [
     "pytest-asyncio>=0.18.2,!=0.22.0,<0.23.0",
     "pytest-env>=0.8,<2.0",
     "pytest-rerunfailures>=10,<14",
@@ -54,6 +50,8 @@ tests = [
     "pytest-timeout",
     "pytest-xdist",
 ]
+
+[project.optional-dependencies]
 
 chroma = ["chromadb"]
 tpuf = ["turbopuffer"]

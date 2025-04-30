@@ -14,13 +14,13 @@ from datetime import timedelta
 from typing import Any
 
 import httpx
-from marvin.beta.assistants import Assistant  # type: ignore
+import marvin
 from prefect import flow, task
 from prefect.context import TaskRunContext
 from rich.status import Status
 
 from raggy.documents import Document
-from raggy.loaders.web import SitemapLoader
+from raggy.loaders.web import SitemapLoader, URLLoader
 from raggy.vectorstores.tpuf import TurboPuffer, multi_query_tpuf
 
 TPUF_NS = "demo"
@@ -43,15 +43,20 @@ def get_last_modified(
     cache_key_fn=get_last_modified,
     cache_expiration=timedelta(hours=24),
 )
-async def gather_documents(
+async def gather_documents_from_sitemap(
     urls: list[str], exclude: list[str | re.Pattern[str]] | None = None
 ) -> list[Document]:
     return await SitemapLoader(urls=urls, exclude=exclude or []).load()
 
 
-@flow(flow_run_name="{urls}")
-async def ingest_website(
-    urls: list[str], exclude: list[str | re.Pattern[str]] | None = None
+@task(task_run_name="load documents from {urls}")
+async def gather_documents_from_websites(urls: list[str]) -> list[Document]:
+    return await URLLoader(urls=urls).load()
+
+
+@flow(flow_run_name="{sitemap_urls}")
+def ingest_sitemaps(
+    sitemap_urls: list[str], exclude: list[str | re.Pattern[str]] | None = None
 ):
     """Ingest a website into the vector database.
 
@@ -59,10 +64,25 @@ async def ingest_website(
         urls: The URLs to ingest (exact or glob patterns).
         exclude: The URLs to exclude (exact or glob patterns).
     """
-    documents: list[Document] = await gather_documents(urls, exclude)  # type: ignore
+    documents: list[Document] = gather_documents_from_sitemap.submit(
+        sitemap_urls, exclude
+    ).result()
     with TurboPuffer(namespace=TPUF_NS) as tpuf:
-        print(f"Upserting {len(documents)} documents into {TPUF_NS}")  # type: ignore
-        await tpuf.upsert_batched(documents)  # type: ignore
+        print(f"Upserting {len(documents)} documents into {TPUF_NS}")
+        task(tpuf.upsert_batched).submit(documents).wait()
+
+
+@flow(flow_run_name="{urls}")
+def ingest_websites(urls: list[str]):
+    """Ingest a website into the vector database.
+
+    Args:
+        urls: The URLs to ingest (exact or glob patterns).
+    """
+    documents: list[Document] = gather_documents_from_websites.submit(urls).result()
+    with TurboPuffer(namespace=TPUF_NS) as tpuf:
+        print(f"Upserting {len(documents)} documents into {TPUF_NS}")
+        task(tpuf.upsert_batched).submit(documents).wait()
 
 
 @task(task_run_name="querying: {query_texts}")
@@ -82,28 +102,36 @@ def do_research(query_texts: list[str]):
 
 
 @flow(log_prints=True)
-async def chat_with_website(initial_message: str | None = None, clean_up: bool = True):
-    try:
-        with Assistant(
-            model="gpt-4o",
-            name="Website Expert",
-            instructions=(
-                "Use your tools to ingest and chat about website content. "
-                "Let the user choose questions, query as needed to get good answers. "
-                "You must find documented content on the website before making claims."
-            ),
-            tools=[
-                ingest_website,
-                do_research,
-            ],
-        ) as assistant:  # type: ignore
-            assistant.chat(initial_message=initial_message)  # type: ignore
+async def chat_with_urls(initial_message: str, clean_up: bool = True):
+    agent = marvin.Agent(
+        model="gpt-4o",
+        name="Website Expert",
+        instructions=(
+            "Use your tools to ingest and chat about website content. "
+            "Let the user choose questions, query as needed to get good answers. "
+            "You must find documented content on the website before making claims."
+        ),
+        tools=[
+            ingest_sitemaps,
+            ingest_websites,
+            do_research,
+        ],
+    )
 
-    finally:
-        if clean_up:
-            with TurboPuffer(namespace=TPUF_NS) as tpuf:
-                with Status(f"Cleaning up namespace {TPUF_NS}"):
-                    task(tpuf.reset)()
+    result = await agent.run_async(initial_message)
+    print(f"Assistant: {result}")
+
+    while True:
+        message = input("You: ")
+        if message.lower() in ["exit", "quit"]:
+            break
+        result = await agent.run_async(message)
+        print(f"Assistant: {result}")
+
+    if clean_up:
+        with TurboPuffer(namespace=TPUF_NS) as tpuf:
+            with Status(f"Cleaning up namespace {TPUF_NS}"):
+                task(tpuf.reset)()
 
 
 if __name__ == "__main__":
@@ -120,4 +148,5 @@ if __name__ == "__main__":
             "and then tell me how it works"
         )
 
-    asyncio.run(chat_with_website(initial_message))
+    with marvin.Thread():
+        asyncio.run(chat_with_urls(initial_message))

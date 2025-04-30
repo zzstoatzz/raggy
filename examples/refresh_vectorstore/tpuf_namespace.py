@@ -41,7 +41,11 @@ loaders = {
                 "https://docs.prefect.io/sitemap.xml",
                 "https://prefect.io/sitemap.xml",
             ],
-            exclude=["api-ref", "www.prefect.io/events"],
+            exclude=[
+                "api-ref",
+                "www.prefect.io/events",
+                "www.prefect.io/blog/prefect-global-coordination-plane",
+            ],
         ),
         GitHubRepoLoader(
             repo="PrefectHQ/prefect",
@@ -64,13 +68,10 @@ loaders = {
             include_globs=["**/*.py", "**/*.md", "**/*.yaml"],
         ),
     ],
-    "controlflow": [
-        SitemapLoader(
-            urls=["https://controlflow.ai/sitemap.xml"],
-        ),
+    "marvin": [
         GitHubRepoLoader(
-            repo="PrefectHQ/controlflow",
-            include_globs=["examples/"],
+            repo="PrefectHQ/marvin",
+            include_globs=["examples/", "docs/"],
         ),
     ],
 }
@@ -79,7 +80,7 @@ loaders = {
 def _cache_key_with_invalidation(
     context: TaskRunContext, parameters: dict[str, Any]
 ) -> str:
-    return f"{task_input_hash(context, parameters)}:{os.getenv("RAGGY_CACHE_VERSION", "0")}"
+    return f"{task_input_hash(context, parameters)}:{os.getenv('RAGGY_CACHE_VERSION', '0')}"
 
 
 @task(
@@ -113,7 +114,7 @@ def refresh_tpuf_namespace(
         for doc in future.result()  # type: ignore
     ]
 
-    print(f"Gathered {len(documents)} documents from the Prefect community.")
+    print(f"Gathered {len(documents)} documents from 🌎")
 
     with TurboPuffer(namespace=namespace) as tpuf:
         if reset:
