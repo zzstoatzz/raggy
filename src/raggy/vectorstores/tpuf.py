@@ -1,5 +1,5 @@
 import asyncio
-from typing import Sequence
+from typing import Literal, Sequence
 
 import turbopuffer as tpuf
 from prefect.utilities.asyncutils import run_coro_as_sync
@@ -69,6 +69,10 @@ class TurboPuffer(Vectorstore):
 
     @property
     def ns(self):
+        if not tpuf.api_key:
+            raise ValueError(
+                "TurboPuffer API key not found. Please set TURBOPUFFER_API_KEY environment variable."
+            )
         return tpuf.Namespace(self.namespace)
 
     def upsert(
@@ -77,8 +81,12 @@ class TurboPuffer(Vectorstore):
         ids: list[str] | list[int] | None = None,
         vectors: list[list[float]] | None = None,
         attributes: dict[str, list[str | int | None]] | None = None,
+        distance_metric: Literal[
+            "cosine_distance", "euclidean_squared"
+        ] = "cosine_distance",
     ):
         attributes = attributes or {}
+        upsert_cols = {}
 
         if documents is None and vectors is None:
             raise ValueError("Either `documents` or `vectors` must be provided.")
@@ -87,9 +95,9 @@ class TurboPuffer(Vectorstore):
             ids = [document.id for document in documents]
             texts = [document.text for document in documents]
             embeddings = run_coro_as_sync(create_openai_embeddings(texts))
-            assert embeddings is not None and isinstance(
-                embeddings, list
-            ), "embeddings cannot be none"
+            assert embeddings is not None and isinstance(embeddings, list), (
+                "embeddings cannot be none"
+            )
             vectors = (
                 [embeddings] if not isinstance(embeddings[0], list) else embeddings
             )
@@ -97,11 +105,19 @@ class TurboPuffer(Vectorstore):
                 raise ValueError(
                     "The `text` attribute is reserved and cannot be used as a custom attribute."
                 )
-            attributes |= {"text": [str(t) for t in texts]}
+            attributes["text"] = [str(t) for t in texts]
 
         assert ids is not None, "ids cannot be none"
         assert vectors is not None, "vectors cannot be none"
-        self.ns.upsert(ids=ids, vectors=vectors, attributes=attributes)  # type: ignore
+
+        upsert_cols["id"] = ids
+        upsert_cols["vector"] = vectors  # type: ignore
+        upsert_cols.update(attributes)  # type: ignore
+
+        self.ns.write(
+            upsert_columns=upsert_cols,
+            distance_metric=distance_metric,
+        )
 
     def query(
         self,
@@ -128,7 +144,8 @@ class TurboPuffer(Vectorstore):
         )
 
     def delete(self, ids: str | int | list[str] | list[int]):
-        self.ns.delete(ids=ids)
+        ids_list = ids if isinstance(ids, list) else [ids]
+        self.ns.write(deletes=ids_list)  # type: ignore
 
     def reset(self):
         try:
@@ -153,6 +170,9 @@ class TurboPuffer(Vectorstore):
         documents: Sequence[Document],
         batch_size: int = 100,
         max_concurrent: int = 8,
+        distance_metric: Literal[
+            "cosine_distance", "euclidean_squared"
+        ] = "cosine_distance",
     ) -> None:
         """Upsert documents in batches concurrently.
 
@@ -169,10 +189,15 @@ class TurboPuffer(Vectorstore):
 
         async def _upsert(batch: list[Document], batch_num: int) -> None:
             texts = [doc.text for doc in batch]
-            self.ns.upsert(  # type: ignore
-                ids=[doc.id for doc in batch],
-                vectors=await create_openai_embeddings(texts),
-                attributes={"text": texts},  # type: ignore
+            batch_ids = [doc.id for doc in batch]
+            batch_vectors = await create_openai_embeddings(texts)
+            self.ns.write(
+                upsert_columns={
+                    "id": batch_ids,
+                    "vector": batch_vectors,
+                    "text": texts,
+                },
+                distance_metric=distance_metric,
             )
             self.logger.debug_kv(
                 "Upserted",

@@ -82,4 +82,4 @@ def refresh_chroma(
 
 
 if __name__ == "__main__":
-    refresh_chroma(collection_name="test", chroma_client_type="cloud", mode="reset")
+    refresh_chroma(collection_name="test", chroma_client_type="base", mode="reset")
