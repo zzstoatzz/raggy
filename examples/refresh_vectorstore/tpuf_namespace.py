@@ -27,6 +27,7 @@ loaders = {
             urls=[
                 "https://docs-2.prefect.io/sitemap.xml",
                 "https://prefect.io/sitemap.xml",
+                "https://prefect.io/pricing",
             ],
             exclude=["api-ref", "www.prefect.io/events"],
         ),
@@ -40,6 +41,7 @@ loaders = {
             urls=[
                 "https://docs.prefect.io/sitemap.xml",
                 "https://prefect.io/sitemap.xml",
+                "https://prefect.io/pricing",
             ],
             exclude=[
                 "api-ref",
@@ -71,7 +73,10 @@ loaders = {
     "marvin": [
         GitHubRepoLoader(
             repo="PrefectHQ/marvin",
-            include_globs=["examples/", "docs/"],
+            include_globs=["examples/**/*.py", "docs/**/*.mdx"],
+        ),
+        SitemapLoader(
+            urls=["https://marvin.mintlify.app/sitemap.xml"],
         ),
     ],
 }
