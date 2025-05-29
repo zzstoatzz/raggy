@@ -133,12 +133,17 @@ class TurboPuffer(Vectorstore):
         elif vector is None:
             raise ValueError("Either `text` or `vector` must be provided.")
 
-        return self.ns.query(
-            rank_by=("vector", "ANN", vector),
-            top_k=top_k,
-            filters=filters,
-            include_attributes=include_attributes or ["text"],
-        )
+        query_dict = {
+            "rank_by": ("vector", "ANN", vector),
+            "top_k": top_k,
+            "include_attributes": include_attributes or ["text"],
+            "distance_metric": distance_metric,
+        }
+
+        if filters:
+            query_dict["filters"] = filters
+
+        return self.ns.query(query_data=query_dict)
 
     def delete(self, ids: str | int | list[str] | list[int]):
         ids_list = ids if isinstance(ids, list) else [ids]
