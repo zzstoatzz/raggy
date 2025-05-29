@@ -25,6 +25,7 @@ dependencies = [
     "tenacity",
     "tiktoken",
     "trafilatura",
+    "turbopuffer>=0.4.1",
     "xxhash",
     "yake",
 ]

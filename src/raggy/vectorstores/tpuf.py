@@ -6,7 +6,6 @@ from prefect.utilities.asyncutils import run_coro_as_sync
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from turbopuffer.query import Filters
-from turbopuffer.vectors import VectorResult
 
 from raggy.documents import Document
 from raggy.utilities.embeddings import create_openai_embeddings
@@ -128,19 +127,17 @@ class TurboPuffer(Vectorstore):
         filters: Filters | None = None,
         include_attributes: list[str] | None = None,
         include_vectors: bool = False,
-    ) -> VectorResult:
+    ):
         if text:
             vector = run_coro_as_sync(create_openai_embeddings(text))
         elif vector is None:
             raise ValueError("Either `text` or `vector` must be provided.")
 
-        return self.ns.query(  # type: ignore
-            vector=vector,
+        return self.ns.query(
+            rank_by=("vector", "ANN", vector),
             top_k=top_k,
-            distance_metric=distance_metric,
             filters=filters,
             include_attributes=include_attributes or ["text"],
-            include_vectors=include_vectors,
         )
 
     def delete(self, ids: str | int | list[str] | list[int]):
@@ -225,11 +222,11 @@ def query_namespace(
             filters=filters,
             top_k=top_k,
         )
-        assert vector_result.data is not None, "No data found"
+        assert vector_result.rows is not None, "No data found"
 
         concatenated_result = "\n".join(
             str(row.attributes["text"]) if row.attributes else ""
-            for row in vector_result.data
+            for row in vector_result.rows
         )
 
         return slice_tokens(concatenated_result, max_tokens)
