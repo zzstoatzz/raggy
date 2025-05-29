@@ -5,6 +5,7 @@ import turbopuffer as tpuf
 from prefect.utilities.asyncutils import run_coro_as_sync
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from turbopuffer import APIError
 from turbopuffer.query import Filters
 
 from raggy.documents import Document
@@ -150,7 +151,7 @@ class TurboPuffer(Vectorstore):
     def reset(self):
         try:
             self.ns.delete_all()
-        except tpuf.APIError as e:
+        except APIError as e:
             if e.status_code == 404:
                 self.logger.debug_kv("404", "Namespace already empty.")
             else:
@@ -159,7 +160,7 @@ class TurboPuffer(Vectorstore):
     def ok(self) -> bool:
         try:
             return self.ns.exists()
-        except tpuf.APIError as e:
+        except APIError as e:
             if e.status_code == 404:
                 self.logger.debug_kv("404", "Namespace does not exist.")
                 return False
@@ -220,26 +221,31 @@ def query_namespace(
 ) -> str:
     """Query a TurboPuffer namespace."""
     with TurboPuffer(namespace=namespace) as tpuf:
-        vector_result = tpuf.query(
-            text=query_text,
-            filters=filters,
-            top_k=top_k,
-        )
-        assert vector_result.rows is not None, "No data found"
+        try:
+            vector_result = tpuf.query(
+                text=query_text,
+                filters=filters,
+                top_k=top_k,
+            )
+            assert vector_result.rows is not None, "No data found"
 
-        concatenated_result = "\n".join(
-            str(row.attributes["text"]) if row.attributes else ""
-            for row in vector_result.rows
-        )
+            concatenated_result = "\n".join(
+                str(row.attributes["text"]) if row.attributes else ""
+                for row in vector_result.rows
+            )
 
-        return slice_tokens(concatenated_result, max_tokens)
+            return slice_tokens(concatenated_result, max_tokens)
+        except APIError as e:
+            if "missing distance metric" in str(e) or e.status_code == 404:
+                # Namespace is empty or doesn't exist
+                return ""
+            raise
 
 
 def multi_query_tpuf(
     queries: list[str],
     n_results: int = 3,
     namespace: str = "raggy",
-    distance_metric: str = "cosine_distance",
 ) -> str:
     """searches a Turbopuffer namespace for the given queries"""
     results = [

@@ -1,10 +1,3 @@
-# /// script
-# dependencies = [
-#     "prefect",
-#     "raggy[tpuf]",
-# ]
-# ///
-
 import os
 from datetime import timedelta
 from typing import Any, Sequence
