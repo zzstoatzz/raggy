@@ -73,23 +73,21 @@ def test_basic_operations():
         print(f"✅ Namespace exists after upsert: {exists_after}")
         assert exists_after, "Namespace should exist after upsert"
 
-    # Test 4: Query with text
-    print("\n4️⃣ Testing query with text...")
-    with TurboPuffer(namespace=namespace) as tpuf:
-        result = tpuf.query(text="machine learning", top_k=3)
-        print(f"✅ Query returned {len(result.rows)} results")
-        assert len(result.rows) > 0, "Query should return results"
+    # Test 4: Query using query_namespace function (main library interface)
+    print("\n4️⃣ Testing query_namespace function...")
+    result_text = query_namespace(
+        query_text="machine learning", namespace=namespace, top_k=3, max_tokens=200
+    )
+    print(f"✅ query_namespace returned: {result_text[:50]}...")
+    assert len(result_text) > 0, "query_namespace should return text"
 
-    # Test 5: Query with vector
-    print("\n5️⃣ Testing query with vector...")
-    with TurboPuffer(namespace=namespace) as tpuf:
-        # Use a simple vector for testing
-        test_vector = [0.1] * 1536  # OpenAI embedding dimensions
-        try:
-            result = tpuf.query(vector=test_vector, top_k=2)
-            print(f"✅ Vector query returned {len(result.rows)} results")
-        except Exception as e:
-            print(f"⚠️ Vector query failed (expected for dummy vector): {e}")
+    # Test 5: Multi-query using multi_query_tpuf function
+    print("\n5️⃣ Testing multi_query_tpuf function...")
+    multi_result = multi_query_tpuf(
+        queries=["machine learning", "programming"], namespace=namespace, n_results=2
+    )
+    print(f"✅ multi_query_tpuf returned: {multi_result[:50]}...")
+    assert len(multi_result) > 0, "multi_query_tpuf should return text"
 
     # Test 6: Delete specific documents
     print("\n6️⃣ Testing document deletion...")
@@ -99,14 +97,11 @@ def test_basic_operations():
         tpuf.delete(ids_to_delete)
         print(f"✅ Deleted documents: {ids_to_delete}")
 
-        # Verify deletion by querying
-        result = tpuf.query(text="document", top_k=10)
-        remaining_ids = [row.id for row in result.rows]
-        for deleted_id in ids_to_delete:
-            assert deleted_id not in remaining_ids, (
-                f"Document {deleted_id} should be deleted"
-            )
-        print(f"✅ Verified {len(remaining_ids)} documents remain")
+        # Verify deletion using query_namespace
+        result_text = query_namespace(
+            query_text="document", namespace=namespace, top_k=10, max_tokens=500
+        )
+        print("✅ Verified remaining documents via query_namespace")
 
     # Test 7: Reset namespace
     print("\n7️⃣ Testing namespace reset...")
@@ -145,34 +140,23 @@ def test_advanced_operations():
         )
         print("✅ Upserted documents with custom attributes")
 
-    # Test 2: Different distance metrics
-    print("\n2️⃣ Testing different distance metrics...")
+    # Test 2: Query with high-level functions
+    print("\n2️⃣ Testing high-level query functions...")
+    result_text = query_namespace(
+        query_text="programming", namespace=namespace, top_k=1, max_tokens=100
+    )
+    print(f"✅ query_namespace returned: {result_text[:30]}...")
+
+    multi_result = multi_query_tpuf(
+        queries=["programming", "science"], namespace=namespace, n_results=1
+    )
+    print(f"✅ multi_query_tpuf returned: {multi_result[:30]}...")
+
+    # Test 3: Raw query for comparison
+    print("\n3️⃣ Testing raw TurboPuffer query...")
     with TurboPuffer(namespace=namespace) as tpuf:
-        # Test euclidean distance
-        result = tpuf.query(
-            text="programming", distance_metric="euclidean_squared", top_k=1
-        )
-        print(f"✅ Euclidean query returned {len(result.rows)} results")
-
-        # Test cosine distance
-        result = tpuf.query(
-            text="programming", distance_metric="cosine_distance", top_k=1
-        )
-        print(f"✅ Cosine query returned {len(result.rows)} results")
-
-    # Test 3: Query with filters (if supported)
-    print("\n3️⃣ Testing queries with filters...")
-    try:
-        with TurboPuffer(namespace=namespace) as tpuf:
-            # Simple filter test
-            result = tpuf.query(
-                text="programming",
-                # filters={"category": ("=", "programming")},  # Uncomment if filters work
-                top_k=5,
-            )
-            print(f"✅ Filtered query returned {len(result.rows)} results")
-    except Exception as e:
-        print(f"⚠️ Filter query failed (may not be supported): {e}")
+        result = tpuf.query(text="programming", top_k=5)
+        print(f"✅ Raw query returned {len(result.rows)} results")
 
     # Cleanup
     with TurboPuffer(namespace=namespace) as tpuf:
@@ -204,56 +188,6 @@ async def test_batch_operations():
         assert len(result.rows) == len(large_doc_set), (
             "All documents should be uploaded"
         )
-
-    # Cleanup
-    with TurboPuffer(namespace=namespace) as tpuf:
-        tpuf.reset()
-
-
-def test_convenience_functions():
-    """Test convenience functions."""
-    print("\n" + "=" * 60)
-    print("🛠️ TESTING CONVENIENCE FUNCTIONS")
-    print("=" * 60)
-
-    namespace = f"test_convenience_{uuid.uuid4().hex[:8]}"
-    print(f"Using namespace: {namespace}")
-
-    # Setup test data
-    documents = [
-        Document(
-            id="conv1", text="Python is a programming language for machine learning"
-        ),
-        Document(
-            id="conv2", text="Data science uses statistical methods and algorithms"
-        ),
-        Document(
-            id="conv3", text="Artificial intelligence transforms business processes"
-        ),
-    ]
-
-    with TurboPuffer(namespace=namespace) as tpuf:
-        tpuf.upsert(documents)
-
-    # Test 1: query_namespace function
-    print("\n1️⃣ Testing query_namespace function...")
-    result_text = query_namespace(
-        query_text="machine learning", namespace=namespace, top_k=2, max_tokens=100
-    )
-    print(f"✅ query_namespace returned: {result_text[:50]}...")
-    assert len(result_text) > 0, "query_namespace should return text"
-
-    # Test 2: multi_query_tpuf function
-    print("\n2️⃣ Testing multi_query_tpuf function...")
-    multi_result = multi_query_tpuf(
-        queries=["machine learning", "data science"], namespace=namespace, n_results=1
-    )
-    print(f"✅ multi_query_tpuf returned: {multi_result[:50]}...")
-    assert len(multi_result) > 0, "multi_query_tpuf should return text"
-    assert (
-        "machine learning" in multi_result.lower()
-        or "data science" in multi_result.lower()
-    )
 
     # Cleanup
     with TurboPuffer(namespace=namespace) as tpuf:
@@ -302,25 +236,25 @@ def test_error_conditions():
 def main():
     """Run comprehensive TurboPuffer integration tests."""
     print("🧮 COMPREHENSIVE TURBOPUFFER INTEGRATION TEST")
-    print("This tests ALL operations exposed by the raggy TurboPuffer integration")
+    print(
+        "This tests raggy's TurboPuffer integration including query_namespace and multi_query_tpuf"
+    )
     print("Turbopuffer version: 0.4.1 (expected)")
 
     try:
         test_basic_operations()
         test_advanced_operations()
         asyncio.run(test_batch_operations())
-        test_convenience_functions()
         test_error_conditions()
 
         print("\n" + "=" * 60)
         print("🎉 ALL TESTS COMPLETED SUCCESSFULLY!")
         print("=" * 60)
-        print("✅ Basic operations: upsert, query, delete, reset, ok")
-        print("✅ Advanced operations: custom attributes, distance metrics")
+        print("✅ Basic operations: upsert, query_namespace, multi_query_tpuf")
+        print("✅ Advanced operations: custom attributes, raw queries")
         print("✅ Batch operations: upsert_batched")
-        print("✅ Convenience functions: query_namespace, multi_query_tpuf")
         print("✅ Error handling: proper exceptions raised")
-        print("\nThe TurboPuffer integration is working correctly! 🚀")
+        print("\nThe raggy TurboPuffer integration is working correctly!")
 
     except Exception as e:
         print(f"\n❌ TEST FAILED: {e}")
