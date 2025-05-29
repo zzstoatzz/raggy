@@ -137,7 +137,6 @@ class TurboPuffer(Vectorstore):
             "rank_by": ("vector", "ANN", vector),
             "top_k": top_k,
             "include_attributes": include_attributes or ["text"],
-            "distance_metric": distance_metric,
         }
 
         if filters:
