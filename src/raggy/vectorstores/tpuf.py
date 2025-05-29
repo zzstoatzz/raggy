@@ -219,6 +219,7 @@ def query_namespace(
     namespace: str = "raggy",
     top_k: int = 10,
     max_tokens: int = 500,
+    distance_metric: str = "cosine_distance",
 ) -> str:
     """Query a TurboPuffer namespace."""
     with TurboPuffer(namespace=namespace) as tpuf:
@@ -226,6 +227,7 @@ def query_namespace(
             text=query_text,
             filters=filters,
             top_k=top_k,
+            distance_metric=distance_metric,
         )
         assert vector_result.rows is not None, "No data found"
 
@@ -238,7 +240,10 @@ def query_namespace(
 
 
 def multi_query_tpuf(
-    queries: list[str], n_results: int = 3, namespace: str = "raggy"
+    queries: list[str],
+    n_results: int = 3,
+    namespace: str = "raggy",
+    distance_metric: str = "cosine_distance",
 ) -> str:
     """searches a Turbopuffer namespace for the given queries"""
     results = [
@@ -247,6 +252,7 @@ def multi_query_tpuf(
             namespace=namespace,
             top_k=n_results,
             max_tokens=800 // len(queries),
+            distance_metric=distance_metric,
         )
         for query in queries
     ]
