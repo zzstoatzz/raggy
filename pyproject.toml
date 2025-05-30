@@ -38,7 +38,7 @@ dev = [
     "mkdocs-markdownextradata-plugin~=0.2",
     "mkdocs-material[imaging]>=9.1.17",
     "mkdocstrings[python]~=0.22",
-    "mypy",
+    "ty",
     "pip",
     "pre-commit>=2.21,<4.0",
     "ruff",
@@ -66,8 +66,8 @@ Code = "https://github.com/zzstoatzz/raggy"
 
 
 [build-system]
-requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -102,46 +102,16 @@ skip-magic-trailing-comma = false
 "conftest.py" = ["F401", "F403"]
 'tests/fixtures/*.py' = ['F403']
 
-[tool.setuptools_scm]
-write_to = "src/raggy/_version.py"
+[tool.hatch.version]
+source = "vcs"
 
-[tool.mypy]
-ignore_missing_imports = true
-check_untyped_defs = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_return_any = true
-warn_unreachable = true
-strict_optional = true
-exclude = ["examples/.*"]
+[tool.hatch.build.hooks.vcs]
+version-file = "src/raggy/_version.py"
 
-[[tool.mypy.overrides]]
-module = [
-    "bs4.*",
-    "fake_useragent.*",
-    "gh_util.*",
-    "turbopuffer.*",
-    "prefect.*",
-    "marvin.*",
-    "praw.*",
-    "yake.*",
-]
-ignore_missing_imports = true
+[tool.ty.environment]
+python-version = "3.10"
 
-[[tool.mypy.overrides]]
-module = [
-    "raggy.cli",
-    "raggy.settings",
-    "raggy.utilities.text",
-    "raggy.utilities.asyncutils",
-    "raggy.vectorstores.tpuf",
-    "raggy.vectorstores.chroma",
-    "raggy.loaders.web",
-    "raggy.loaders.pdf",
-]
-disable_error_code = [
-    "unreachable",
-    "no-any-return",
-    "unused-ignore",
-    "no-redef",
-]
+[tool.ty.rules]
+unreachable-code = "warn"
+unused-import = "warn"
+unused-variable = "warn"
