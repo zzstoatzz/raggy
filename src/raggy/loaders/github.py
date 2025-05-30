@@ -1,17 +1,18 @@
 """Loaders for GitHub."""
 
 import asyncio
+import asyncio.subprocess
 import functools
 import os
 import re
 from pathlib import Path
-from typing import Self
 
 import aiofiles
 import chardet
 import httpx
 from gh_util.types import GitHubComment, GitHubIssue
 from pydantic import Field, field_validator, model_validator
+from typing_extensions import Self
 
 from raggy.documents import Document, document_to_excerpts
 from raggy.loaders import Loader
@@ -90,7 +91,14 @@ class GitHubIssueLoader(Loader):
                 response.raise_for_status()
                 if not (new_comments := response.json()):
                     break
-                comments.extend([GitHubComment(**comment) for comment in new_comments])
+                comments.extend(
+                    [
+                        GitHubComment(
+                            **{k: v for k, v in comment.items() if v is not None}
+                        )  # type: ignore
+                        for comment in new_comments
+                    ]
+                )
                 page += 1
             return comments
 
@@ -121,7 +129,12 @@ class GitHubIssueLoader(Loader):
                 response.raise_for_status()
                 if not (new_issues := response.json()):
                     break
-                issues.extend([GitHubIssue(**issue) for issue in new_issues])
+                issues.extend(
+                    [
+                        GitHubIssue(**{k: v for k, v in issue.items() if v is not None})  # type: ignore
+                        for issue in new_issues
+                    ]
+                )
                 page += 1
             return issues
 
@@ -210,7 +223,12 @@ class GitHubRepoLoader(Loader):
         async with OPEN_FILE_CONCURRENCY:
             async with aiofiles.tempfile.TemporaryDirectory(suffix="_raggy") as tmp_dir:
                 process = await asyncio.create_subprocess_exec(
-                    *["git", "clone", "--depth", "1", self.repo, tmp_dir],
+                    "git",
+                    "clone",
+                    "--depth",
+                    "1",
+                    self.repo,
+                    tmp_dir,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -251,4 +269,3 @@ class GitHubRepoLoader(Loader):
                         )
                     )
                 return documents
-

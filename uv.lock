@@ -3283,6 +3283,7 @@ dependencies = [
     { name = "tiktoken" },
     { name = "trafilatura" },
     { name = "turbopuffer" },
+    { name = "typing-extensions" },
     { name = "xxhash" },
     { name = "yake" },
 ]
@@ -3338,10 +3339,11 @@ requires-dist = [
     { name = "trafilatura" },
     { name = "turbopuffer", specifier = ">=0.4.1" },
     { name = "turbopuffer", marker = "extra == 'tpuf'" },
+    { name = "typing-extensions" },
     { name = "xxhash" },
     { name = "yake" },
 ]
-provides-extras = ["chroma", "tpuf", "pdf"]
+provides-extras = ["chroma", "pdf", "tpuf"]
 
 [package.metadata.requires-dev]
 dev = [

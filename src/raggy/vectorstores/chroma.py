@@ -1,19 +1,24 @@
 from typing import Any, Awaitable, Literal, Sequence
 
-from chromadb import Client, CloudClient, HttpClient, Include
-from chromadb.api import ClientAPI
-from chromadb.api.models.Collection import Collection
-from chromadb.api.models.Collection import Document as ChromaDocument
-from chromadb.api.types import (
-    Embedding,
-    OneOrMany,
-    PyEmbedding,
-    QueryResult,
-    Where,
-    WhereDocument,
-)
-from chromadb.types import Metadata
-from chromadb.utils.batch_utils import create_batches
+try:
+    from chromadb import Client, CloudClient, HttpClient, Include
+    from chromadb.api import ClientAPI
+    from chromadb.api.models.Collection import Collection
+    from chromadb.api.models.Collection import Document as ChromaDocument
+    from chromadb.api.types import (
+        Embedding,
+        OneOrMany,
+        PyEmbedding,
+        QueryResult,
+        Where,
+        WhereDocument,
+    )
+    from chromadb.types import Metadata
+    from chromadb.utils.batch_utils import create_batches
+except ImportError as e:
+    raise ImportError(
+        "chromadb is required for ChromaVectorStore. Install it with `pip install chromadb`"
+    ) from e
 from prefect.utilities.asyncutils import run_coro_as_sync
 
 from raggy.documents import Document as RaggyDocument
@@ -226,7 +231,7 @@ def query_collection(
             include=["documents"],  # type: ignore
         )
 
-        assert (
-            result := query_result.get("documents")
-        ) is not None, "No documents found"
+        assert (result := query_result.get("documents")) is not None, (
+            "No documents found"
+        )
         return slice_tokens("\n".join(result[0]), max_tokens)

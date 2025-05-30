@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 from functools import partial
-from typing import Annotated, Any, Self
+from typing import Annotated, Any
 
 from jinja2 import Environment, Template
 from pydantic import (
@@ -11,6 +11,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from typing_extensions import Self
 
 from raggy.utilities.ids import generate_prefixed_uuid
 from raggy.utilities.text import count_tokens, extract_keywords, hash_text, split_text
@@ -51,6 +52,7 @@ class Document(BaseModel):
     def ensure_metadata(cls, v: dict[str, Any] | DocumentMetadata) -> DocumentMetadata:
         if isinstance(v, dict):
             return DocumentMetadata(**v)
+        assert isinstance(v, DocumentMetadata)
         return v
 
     @model_validator(mode="after")

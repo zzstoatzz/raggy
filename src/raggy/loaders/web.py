@@ -1,12 +1,13 @@
 import asyncio
 import re
-from typing import Callable, Self, cast
+from typing import Callable, cast
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
 from fake_useragent import UserAgent
 from httpx import AsyncClient, Response
 from pydantic import Field
+from typing_extensions import Self
 
 import raggy
 from raggy.documents import Document, document_to_excerpts

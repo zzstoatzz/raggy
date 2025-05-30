@@ -26,6 +26,7 @@ dependencies = [
     "tiktoken",
     "trafilatura",
     "turbopuffer>=0.4.1",
+    "typing_extensions",
     "xxhash",
     "yake",
 ]
@@ -111,7 +112,12 @@ version-file = "src/raggy/_version.py"
 [tool.ty.environment]
 python-version = "3.10"
 
+[tool.ty.src]
+root = "src"
+
 [tool.ty.rules]
-unreachable-code = "warn"
-unused-import = "warn"
-unused-variable = "warn"
+unresolved-import = "warn"
+missing-argument = "error"
+possibly-unbound-attribute = "warn"
+invalid-return-type = "error"
+unresolved-attribute = "error"
