@@ -28,13 +28,12 @@ jobs:
           python-version: "3.11"
           enable-cache: true
           cache-dependency-glob: |
-            **/requirements*.txt
-            **/pyproject.toml
-            **/uv.lock
-            Makefile
+            uv.lock
+            justfile
 
-      - name: Install dependencies and setup pre-commit
-        run: make install
+      - uses: extractions/setup-just@v2
+        with:
+          just-version: 1.5.0
 
       - name: Run linting and type checking
-        run: make lint typecheck
+        run: just lint typecheck

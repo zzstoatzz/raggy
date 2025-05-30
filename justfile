@@ -28,6 +28,15 @@ serve-docs: check-uv
 install: check-uv
     uv sync
 
+# Run linting and type checking
+lint: check-uv install
+    uv run ruff check .
+    uv run ruff format .
+
+# Run type checking
+typecheck: check-uv
+    uv run ty check
+
 # Clean up environment
 clean: check-uv
     deactivate || true
