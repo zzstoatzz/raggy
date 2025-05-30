@@ -207,7 +207,7 @@ def test_error_conditions():
     print("\n1️⃣ Testing query without text or vector...")
     try:
         with TurboPuffer(namespace=namespace) as tpuf:
-            result = tpuf.query()  # Should fail
+            tpuf.query()  # Should fail
         print("❌ Expected error was not raised")
     except ValueError as e:
         print(f"✅ Correctly caught error: {e}")
@@ -225,9 +225,7 @@ def test_error_conditions():
     print("\n3️⃣ Testing query on non-existent namespace...")
     empty_namespace = f"empty_{uuid.uuid4().hex[:8]}"
     try:
-        result_text = query_namespace(
-            query_text="anything", namespace=empty_namespace, top_k=1
-        )
+        query_namespace(query_text="anything", namespace=empty_namespace, top_k=1)
         print("⚠️ Query on empty namespace didn't fail (may be expected)")
     except Exception as e:
         print(f"✅ Query on empty namespace failed as expected: {e}")
