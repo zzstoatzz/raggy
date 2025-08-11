@@ -37,7 +37,6 @@ loaders = {
                 "https://prefect.io/pricing",
             ],
             exclude=[
-                "api-ref",
                 "www.prefect.io/events",
                 "www.prefect.io/blog/prefect-global-coordination-plane",
             ],
