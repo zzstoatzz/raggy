@@ -1,12 +1,12 @@
 import asyncio
 from typing import Literal, Sequence
 
-import turbopuffer as tpuf
 from prefect.utilities.asyncutils import run_coro_as_sync
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from turbopuffer import APIError
-from turbopuffer.query import Filters
+from turbopuffer import NotFoundError
+from turbopuffer import Turbopuffer as TurbopufferClient
+from turbopuffer.types import Filter as Filters
 
 from raggy.documents import Document
 from raggy.utilities.embeddings import create_openai_embeddings
@@ -27,13 +27,8 @@ class TurboPufferSettings(BaseSettings):
     api_key: SecretStr = Field(
         default=..., description="The API key for the TurboPuffer instance."
     )
+    region: str = Field(default="api", description="The TurboPuffer region.")
     default_namespace: str = Field(default="raggy")
-
-    @model_validator(mode="after")
-    def set_api_key(self):
-        if not tpuf.api_key and self.api_key:
-            tpuf.api_key = self.api_key.get_secret_value()
-        return self
 
 
 tpuf_settings = TurboPufferSettings()
@@ -66,14 +61,24 @@ class TurboPuffer(Vectorstore):
     """
 
     namespace: str = Field(default_factory=lambda: tpuf_settings.default_namespace)
+    _client: TurbopufferClient | None = None
+
+    @property
+    def client(self) -> TurbopufferClient:
+        if self._client is None:
+            if not tpuf_settings.api_key:
+                raise ValueError(
+                    "TurboPuffer API key not found. Please set TURBOPUFFER_API_KEY environment variable."
+                )
+            self._client = TurbopufferClient(
+                api_key=tpuf_settings.api_key.get_secret_value(),
+                region=tpuf_settings.region,
+            )
+        return self._client
 
     @property
     def ns(self):
-        if not tpuf.api_key:
-            raise ValueError(
-                "TurboPuffer API key not found. Please set TURBOPUFFER_API_KEY environment variable."
-            )
-        return tpuf.Namespace(self.namespace)
+        return self.client.namespace(self.namespace)
 
     def upsert(
         self,
@@ -114,8 +119,16 @@ class TurboPuffer(Vectorstore):
         upsert_cols["vector"] = vectors  # type: ignore
         upsert_cols.update(attributes)  # type: ignore
 
+        # Convert column-based format to row-based format
+        rows = []
+        for i in range(len(ids)):
+            row = {"id": ids[i], "vector": vectors[i]}
+            for attr_name, attr_values in attributes.items():
+                row[attr_name] = attr_values[i]
+            rows.append(row)
+
         self.ns.write(
-            upsert_columns=upsert_cols,
+            upsert_rows=rows,
             distance_metric=distance_metric,
         )
 
@@ -142,29 +155,25 @@ class TurboPuffer(Vectorstore):
         if filters:
             query_dict["filters"] = filters
 
-        return self.ns.query(query_data=query_dict)
+        # Query returns a NamespaceQueryResponse with rows attribute
+        return self.ns.query(**query_dict)
 
     def delete(self, ids: str | int | list[str] | list[int]):
         ids_list = ids if isinstance(ids, list) else [ids]
-        self.ns.write(deletes=ids_list)  # type: ignore
+        self.ns.write(deletes=ids_list)
 
     def reset(self):
         try:
             self.ns.delete_all()
-        except APIError as e:
-            if e.status_code == 404:
-                self.logger.debug_kv("404", "Namespace already empty.")
-            else:
-                raise
+        except NotFoundError:
+            self.logger.debug_kv("404", "Namespace already empty.")
 
     def ok(self) -> bool:
         try:
             return self.ns.exists()
-        except APIError as e:
-            if e.status_code == 404:
-                self.logger.debug_kv("404", "Namespace does not exist.")
-                return False
-            raise
+        except NotFoundError:
+            self.logger.debug_kv("404", "Namespace does not exist.")
+            return False
 
     async def upsert_batched(
         self,
@@ -192,12 +201,19 @@ class TurboPuffer(Vectorstore):
             texts = [doc.text for doc in batch]
             batch_ids = [doc.id for doc in batch]
             batch_vectors = await create_openai_embeddings(texts)
+            # Convert to row-based format
+            rows = []
+            for i in range(len(batch_ids)):
+                rows.append(
+                    {
+                        "id": batch_ids[i],
+                        "vector": batch_vectors[i],
+                        "text": texts[i],
+                    }
+                )
+
             self.ns.write(
-                upsert_columns={
-                    "id": batch_ids,
-                    "vector": batch_vectors,
-                    "text": texts,
-                },
+                upsert_rows=rows,
                 distance_metric=distance_metric,
             )
             self.logger.debug_kv(
@@ -220,9 +236,9 @@ def query_namespace(
     max_tokens: int = 500,
 ) -> str:
     """Query a TurboPuffer namespace."""
-    with TurboPuffer(namespace=namespace) as tpuf:
+    with TurboPuffer(namespace=namespace) as tpuf_ns:
         try:
-            vector_result = tpuf.query(
+            vector_result = tpuf_ns.query(
                 text=query_text,
                 filters=filters,
                 top_k=top_k,
@@ -230,13 +246,17 @@ def query_namespace(
             assert vector_result.rows is not None, "No data found"
 
             concatenated_result = "\n".join(
-                str(row.attributes["text"]) if row.attributes else ""
+                str(getattr(row, "text", ""))
+                if hasattr(row, "text")
+                else str(row.__dict__.get("text", ""))
+                if hasattr(row, "__dict__")
+                else ""
                 for row in vector_result.rows
             )
 
             return slice_tokens(concatenated_result, max_tokens)
-        except APIError as e:
-            if "missing distance metric" in str(e) or e.status_code == 404:
+        except (NotFoundError, Exception) as e:
+            if isinstance(e, NotFoundError) or "missing distance metric" in str(e):
                 # Namespace is empty or doesn't exist
                 return ""
             raise
