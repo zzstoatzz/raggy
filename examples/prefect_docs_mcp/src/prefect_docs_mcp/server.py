@@ -16,9 +16,6 @@ prefect_docs_mcp = FastMCP(
     instructions=(
         "Expose the Prefect documentation via a single semantic search tool backed by Raggy."
     ),
-    dependencies=[
-        "prefect_docs_mcp@git+https://github.com/zzstoatzz/raggy.git#subdirectory=examples/prefect_docs_mcp"
-    ],
 )
 
 
