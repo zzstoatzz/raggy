@@ -1,0 +1,11 @@
+{
+  "$schema": "https://gofastmcp.com/public/schemas/fastmcp.json/v1.json",
+  "source": {
+    "path": "src/prefect_docs_mcp/server.py"
+  },
+  "environment": {
+    "dependencies": [
+      "prefect-docs-mcp@git+https://github.com/zzstoatzz/raggy.git#subdirectory=examples/prefect_docs_mcp"
+    ]
+  }
+}
