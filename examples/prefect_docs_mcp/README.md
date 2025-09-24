@@ -39,6 +39,18 @@ uv run prefect-docs-mcp
 Alternatively, use the provided `prefect_docs.fastmcp.json` with the FastMCP CLI or
 an MCP-compatible client.
 
+### Quick Local Test
+
+Use the bundled demo script to hit the live TurboPuffer namespace via the
+FastMCP client:
+
+```bash
+uv run python examples/prefect_docs_mcp/run_client_demo.py --query "flow runner" --top-k 5
+
+# Use a fake vector store (no external calls) if you just want to smoke test locally
+uv run python examples/prefect_docs_mcp/run_client_demo.py --mock
+```
+
 ## Tool Reference
 
 ### `SearchPrefect`
