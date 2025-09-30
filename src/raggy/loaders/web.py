@@ -35,13 +35,20 @@ async def sitemap_search(sitemap_url: str) -> list[str]:
 class WebLoader(Loader):
     document_type: str = "web page"
     headers: dict[str, str] = Field(default_factory=dict, repr=False)
+    use_ai_agent_headers: bool = Field(
+        default=False,
+        description="Use headers that request markdown content (for Mintlify and similar platforms)",
+    )
 
     @property
     def user_agent(self) -> str:
         return cast(str, user_agent.random)  # type: ignore
 
     async def get_headers(self) -> dict[str, str]:
-        return {"User-Agent": self.user_agent, **self.headers}
+        base_headers = {"User-Agent": self.user_agent, **self.headers}
+        if self.use_ai_agent_headers:
+            base_headers["Accept"] = "text/plain"
+        return base_headers
 
 
 class URLLoader(WebLoader):
@@ -68,11 +75,15 @@ class URLLoader(WebLoader):
                     doc = await self.load_url(url, client)
                     if doc is not None:
                         if self.create_excerpts:
-                            return await document_to_excerpts(doc)
+                            return await document_to_excerpts(
+                                doc,
+                                excerpt_template=self.excerpt_template,
+                                chunk_tokens=self.chunk_tokens,
+                            )
                         return [doc]
                     return []
                 except Exception as e:
-                    self.logger.error(e)
+                    self.logger.error(f"Failed to load {url}: {e}")
                     return []
 
             tasks = [load_url_task(url) for url in self.urls]
@@ -132,9 +143,18 @@ class HTMLLoader(URLLoader):
     A loader that loads HTML, optionally converting it to markdown or stripping tags
     """
 
+    include_formatting: bool = Field(
+        default=False,
+        description="Whether to preserve markdown formatting (headings, bold, etc) during HTML extraction.",
+    )
+
     async def get_document_text(self, response: Response) -> str:
         text = await super().get_document_text(response)
-        return raggy.settings.html_parser(text)
+        return raggy.settings.html_parser(text, self.include_formatting)
+
+
+def _identity(x: str) -> str:
+    return x
 
 
 class SitemapLoader(URLLoader):
@@ -146,22 +166,39 @@ class SitemapLoader(URLLoader):
         create_excerpts: Whether to split documents into excerpts. Defaults to True.
     """
 
+    urls: list[str]
+
     include: list[str | re.Pattern[str]] = Field(default_factory=list)
     exclude: list[str | re.Pattern[str]] = Field(default_factory=list)
     url_loader: URLLoader = Field(default_factory=HTMLLoader)
-    url_processor: Callable[[str], str] = lambda x: x  # noqa: E731
+    url_processor: Callable[[str], str] = _identity
     create_excerpts: bool = Field(default=True)
+    include_formatting: bool = Field(
+        default=False,
+        description="Whether to preserve markdown formatting when using HTMLLoader.",
+    )
 
     async def _get_loader(self: Self) -> MultiLoader:
         sitemap_tasks = [self.load_sitemap(url) for url in self.urls]
         url_lists = await asyncio.gather(*sitemap_tasks)
 
+        loader_kwargs = {
+            "headers": await self.get_headers(),
+            "create_excerpts": self.create_excerpts,
+            "excerpt_template": self.excerpt_template,
+            "chunk_tokens": self.chunk_tokens,
+            "use_ai_agent_headers": self.use_ai_agent_headers,
+        }
+
+        # only pass include_formatting if the loader is HTMLLoader
+        if isinstance(self.url_loader, HTMLLoader) or type(self.url_loader) is type and issubclass(type(self.url_loader), HTMLLoader):
+            loader_kwargs["include_formatting"] = self.include_formatting
+
         return MultiLoader(
             loaders=[
                 type(self.url_loader)(
                     urls=list(url_batch),
-                    headers=await self.get_headers(),
-                    create_excerpts=self.create_excerpts,
+                    **loader_kwargs,
                 )
                 for url_batch in batched(
                     [self.url_processor(u) for url_list in url_lists for u in url_list],

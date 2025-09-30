@@ -44,3 +44,6 @@ clean: check-uv
 
 run-pre-commits: check-uv
     uv run pre-commit run --all-files
+
+refresh-prefect-docs-mcp *args:
+    uv run examples/prefect_docs_mcp/refresh_namespace.py {{args}}

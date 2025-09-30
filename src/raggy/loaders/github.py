@@ -172,7 +172,9 @@ class GitHubIssueLoader(Loader):
                     Document(
                         text=text,
                         metadata=metadata,
-                    )
+                    ),
+                    excerpt_template=self.excerpt_template,
+                    chunk_tokens=self.chunk_tokens,
                 )
             )
         return documents
@@ -207,7 +209,7 @@ class GitHubRepoLoader(Loader):
     repo: str = Field(...)
     include_globs: list[str] | None = Field(default=None)
     exclude_globs: list[str] | None = Field(default=None)
-    chunk_size: int = Field(default=500)
+    chunk_tokens: int = Field(default=500)  # override base default for code
     overlap: float = Field(default=0.1)
 
     @field_validator("repo")
@@ -264,7 +266,8 @@ class GitHubRepoLoader(Loader):
                                 text=await read_file_with_chardet(Path(tmp_dir) / file),
                                 metadata=metadata,
                             ),
-                            chunk_size=self.chunk_size,
+                            excerpt_template=self.excerpt_template,
+                            chunk_tokens=self.chunk_tokens,
                             overlap=self.overlap,
                         )
                     )

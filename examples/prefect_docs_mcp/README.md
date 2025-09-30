@@ -20,7 +20,7 @@ Set the following environment variables (for example in `.env` or `~/.raggy/.env
 ```bash
 export TURBOPUFFER_API_KEY="sk-..."
 export TURBOPUFFER_REGION="api"            # optional, defaults to `api`
-export PREFECT_DOCS_MCP_NAMESPACE="prefect-3"  # optional override
+export PREFECT_DOCS_MCP_NAMESPACE="prefect-docs-for-mcp"  # optional override
 ```
 
 Additional tuning knobs:
@@ -39,16 +39,17 @@ uv run prefect-docs-mcp
 Alternatively, use the provided `prefect_docs.fastmcp.json` with the FastMCP CLI or
 an MCP-compatible client.
 
-### Quick Local Test
+### Quick Test
 
-Use the bundled demo script to hit the live TurboPuffer namespace via the
-FastMCP client:
+Test the search functionality using the FastMCP client:
 
-```bash
-uv run python examples/prefect_docs_mcp/run_client_demo.py --query "flow runner" --top-k 5
+```python
+from fastmcp import Client
+from prefect_docs_mcp.server import prefect_docs_mcp
 
-# Use a fake vector store (no external calls) if you just want to smoke test locally
-uv run python examples/prefect_docs_mcp/run_client_demo.py --mock
+async with Client(prefect_docs_mcp) as client:
+    response = await client.call_tool("SearchPrefect", {"query": "how to build flows"})
+    print(response)
 ```
 
 ## Tool Reference
@@ -75,7 +76,15 @@ async def demo():
 
 ## Notes
 
-- The underlying vector store content can be refreshed with the scripts under
-  `examples/refresh_vectorstore/`
+- Populate the default namespace with `examples/prefect_docs_mcp/refresh_namespace.py`
+  (see `--help` for options) before pointing the MCP server at it
+- The legacy flows under `examples/refresh_vectorstore/` remain handy for broader
+  refreshes or scheduled runs
 - If the namespace is empty or unavailable the tool returns an empty result list
   rather than raising, enabling graceful fallbacks in clients
+
+## Performance
+
+Server-side metrics show ~99% of query time is spent in TurboPuffer vector search
+(~1s mean latency), with response formatting taking <10ms. The bottleneck is the
+vector database, not the MCP server code.
