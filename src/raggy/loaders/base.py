@@ -1,7 +1,8 @@
 import asyncio
 from abc import ABC, abstractmethod
 
-from pydantic import BaseModel, ConfigDict
+from jinja2 import Template
+from pydantic import BaseModel, ConfigDict, Field
 
 from raggy.documents import Document
 from raggy.utilities.collections import batched
@@ -12,6 +13,15 @@ class Loader(BaseModel, ABC):
     """A base class for loaders."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    excerpt_template: Template | None = Field(
+        default=None,
+        description="Jinja2 template for rendering document excerpts. If None, uses the default template.",
+    )
+    chunk_tokens: int = Field(
+        default=300,
+        description="Number of tokens per excerpt chunk.",
+    )
 
     @abstractmethod
     async def load(self) -> list[Document]:

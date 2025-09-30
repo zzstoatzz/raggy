@@ -55,7 +55,7 @@ class PDFLoader(Loader):
     """
 
     file_path: str
-    chunk_tokens: int = 500
+    chunk_tokens: int = 500  # override base default for PDFs
 
     @asynccontextmanager
     async def open_pdf_file(self, file_path: str):
@@ -80,6 +80,7 @@ class PDFLoader(Loader):
                         text=page.extract_text(),
                         metadata={"page": i + 1, "file_path": self.file_path},
                     ),
+                    excerpt_template=self.excerpt_template,
                     chunk_tokens=self.chunk_tokens,
                 )
             ]

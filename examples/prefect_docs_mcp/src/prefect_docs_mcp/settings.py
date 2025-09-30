@@ -16,7 +16,7 @@ class PrefectDocsSettings(BaseSettings):
     )
 
     namespace: str = Field(
-        default="prefect-3",
+        default="prefect-docs-for-mcp",
         description="TurboPuffer namespace containing Prefect documentation embeddings.",
     )
     top_k: int = Field(
@@ -29,7 +29,7 @@ class PrefectDocsSettings(BaseSettings):
         default=900,
         ge=100,
         le=2000,
-        description="Maximum number of tokens to include when concatenating excerpts.",
+        description="Maximum number of tokens to include when concatenating excerpts (deprecated - kept for backwards compatibility).",
     )
     include_attributes: Sequence[str] = Field(
         default_factory=list,

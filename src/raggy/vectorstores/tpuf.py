@@ -183,6 +183,7 @@ class TurboPuffer(Vectorstore):
         distance_metric: Literal[
             "cosine_distance", "euclidean_squared"
         ] = "cosine_distance",
+        skip_errors: bool = False,
     ) -> None:
         """Upsert documents in batches concurrently.
 
@@ -190,6 +191,7 @@ class TurboPuffer(Vectorstore):
             documents: Sequence of documents to upsert
             batch_size: Maximum number of documents per batch
             max_concurrent: Maximum number of concurrent upsert operations
+            skip_errors: If True, log errors and continue; if False, raise on first error
         """
         document_list = list(documents)
         batches = [
@@ -198,28 +200,36 @@ class TurboPuffer(Vectorstore):
         ]
 
         async def _upsert(batch: list[Document], batch_num: int) -> None:
-            texts = [doc.text for doc in batch]
-            batch_ids = [doc.id for doc in batch]
-            batch_vectors = await create_openai_embeddings(texts)
-            # Convert to row-based format
-            rows = []
-            for i in range(len(batch_ids)):
-                rows.append(
-                    {
-                        "id": batch_ids[i],
-                        "vector": batch_vectors[i],
-                        "text": texts[i],
-                    }
-                )
+            try:
+                texts = [doc.text for doc in batch]
+                batch_ids = [doc.id for doc in batch]
+                batch_vectors = await create_openai_embeddings(texts)
+                # Convert to row-based format
+                rows = []
+                for i in range(len(batch_ids)):
+                    rows.append(
+                        {
+                            "id": batch_ids[i],
+                            "vector": batch_vectors[i],
+                            "text": texts[i],
+                        }
+                    )
 
-            self.ns.write(
-                upsert_rows=rows,
-                distance_metric=distance_metric,
-            )
-            self.logger.debug_kv(
-                "Upserted",
-                f"Batch {batch_num + 1}/{len(batches)} ({len(batch)} documents)",
-            )
+                self.ns.write(
+                    upsert_rows=rows,
+                    distance_metric=distance_metric,
+                )
+                self.logger.debug_kv(
+                    "Upserted",
+                    f"Batch {batch_num + 1}/{len(batches)} ({len(batch)} documents)",
+                )
+            except Exception as e:
+                if skip_errors:
+                    self.logger.error(
+                        f"Failed to upsert batch {batch_num + 1}/{len(batches)}: {e}"
+                    )
+                else:
+                    raise
 
         for i in range(0, len(batches), max_concurrent):
             batch_group = batches[i : i + max_concurrent]

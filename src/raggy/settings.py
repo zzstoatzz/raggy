@@ -4,10 +4,11 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def default_html_parser(html: str) -> str:
+def default_html_parser(html: str, include_formatting: bool = False) -> str:
     """The default HTML parser using trafilatura or bs4 as a fallback.
     Args:
         html: The HTML to parse.
+        include_formatting: Whether to preserve markdown formatting (headings, bold, etc).
 
     Returns:
         The parsed HTML.
@@ -20,7 +21,12 @@ def default_html_parser(html: str) -> str:
     # https://github.com/adbar/trafilatura/issues/202
     trafilatura_config.set("DEFAULT", "EXTRACTION_TIMEOUT", "0")  # type: ignore[unused-ignore]
     return (
-        trafilatura.extract(html, config=trafilatura_config)
+        trafilatura.extract(
+            html,
+            config=trafilatura_config,
+            include_formatting=include_formatting,
+            include_links=False,
+        )
         or BeautifulSoup(html, "html.parser").get_text()
     )
 
@@ -65,7 +71,7 @@ class Settings(BaseSettings):
     max_concurrent_tasks: int = Field(
         default=50, gt=3, description="The maximum number of concurrent tasks to run."
     )
-    html_parser: Callable[[str], str] = default_html_parser
+    html_parser: Callable[[str, bool], str] = default_html_parser
 
     log_level: str = Field(
         default="INFO",
