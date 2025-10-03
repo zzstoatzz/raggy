@@ -32,7 +32,11 @@ class Settings(BaseSettings):
     )
 
 
-logfire.configure(token=Settings().logfire_token, console=False)
+logfire.configure(
+    service_name="prefect-docs-mcp",
+    token=Settings().logfire_token,
+    console=False,
+)
 
 prefect_docs_mcp = FastMCP("Prefect Docs MCP", version="0.1.0")
 
@@ -86,13 +90,16 @@ def search_prefect(
     ) as span:
         try:
             with TurboPuffer(namespace=settings.namespace) as tpuf:
-                with logfire.span("vector_query"):
+                with logfire.span("vector_query", top_k=result_limit) as vq_span:
                     response = run_query(
                         tpuf,
                         query=query,
                         top_k=result_limit,
                         include_attributes=include_attributes,
                     )
+                    rows_returned = len(response.rows or [])
+                    vq_span.set_attribute("rows_returned", rows_returned)
+                    vq_span.set_attribute("partial_results", rows_returned < result_limit)
         except NotFoundError:
             rows: list[Any] = []
             span.set_attribute("error_type", "not_found")
@@ -122,6 +129,8 @@ def search_prefect(
             rows = list(response.rows or [])
 
         results: list[dict[str, Any]] = []
+        scores: list[float] = []
+
         with logfire.span("format_response", result_count=len(rows)):
             for row in rows:
                 data = row_to_dict(row)
@@ -129,14 +138,18 @@ def search_prefect(
                 # no slicing - content is already chunked at ingestion time
                 snippet_text = str(snippet) if snippet else ""
 
+                score = normalize_score(
+                    data.get("score")
+                    or data.get("distance")
+                    or data.get("similarity")
+                )
+                if score is not None:
+                    scores.append(score)
+
                 result_payload: dict[str, Any] = {
                     "snippet": snippet_text,
                     "id": data.get("id"),
-                    "score": normalize_score(
-                        data.get("score")
-                        or data.get("distance")
-                        or data.get("similarity")
-                    ),
+                    "score": score,
                 }
 
                 metadata = (
@@ -157,5 +170,11 @@ def search_prefect(
 
         span.set_attribute("result_count", len(results))
         span.set_attribute("success", True)
+
+        # add score statistics for dashboard analysis
+        if scores:
+            span.set_attribute("score_min", min(scores))
+            span.set_attribute("score_max", max(scores))
+            span.set_attribute("score_avg", sum(scores) / len(scores))
 
         return _build_response(query, results)
