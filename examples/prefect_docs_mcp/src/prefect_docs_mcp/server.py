@@ -139,7 +139,8 @@ def search_prefect(
                 snippet_text = str(snippet) if snippet else ""
 
                 score = normalize_score(
-                    data.get("score")
+                    data.get("$dist")  # turbopuffer returns distance as $dist
+                    or data.get("score")
                     or data.get("distance")
                     or data.get("similarity")
                 )

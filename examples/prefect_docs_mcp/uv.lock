@@ -788,7 +788,7 @@ wheels = [
 [[package]]
 name = "fastmcp"
 version = "2.12.5.dev34+d55cd086"
-source = { git = "https://github.com/jlowin/fastmcp.git#d55cd086a13ff4a5b5d4df5f2772f00ab2d585c7" }
+source = { git = "https://github.com/jlowin/fastmcp.git?rev=main#d55cd086a13ff4a5b5d4df5f2772f00ab2d585c7" }
 dependencies = [
     { name = "authlib" },
     { name = "cyclopts" },
@@ -2554,7 +2554,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastmcp", git = "https://github.com/jlowin/fastmcp.git" },
+    { name = "fastmcp", git = "https://github.com/jlowin/fastmcp.git?rev=main" },
     { name = "logfire" },
     { name = "pydantic-settings", specifier = ">=2.2.1" },
     { name = "raggy", extras = ["tpuf"], git = "https://github.com/zzstoatzz/raggy.git" },
