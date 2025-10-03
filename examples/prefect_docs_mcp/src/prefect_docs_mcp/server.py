@@ -8,6 +8,7 @@ import logfire
 from fastmcp import FastMCP
 from openai import OpenAIError
 from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from turbopuffer import (
     APIError,
     AuthenticationError,
@@ -19,9 +20,19 @@ from prefect_docs_mcp._internal.tpuf import normalize_score, row_to_dict, run_qu
 from prefect_docs_mcp.settings import settings
 from raggy.vectorstores.tpuf import TurboPuffer
 
-# configure logfire for observability
-# send_to_logfire can be controlled via LOGFIRE_SEND_TO_LOGFIRE env var
-logfire.configure(send_to_logfire="if-token-present")
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=("~/.raggy/.env", ".env"),
+        extra="ignore",
+    )
+
+    logfire_token: str = Field(
+        description="The Logfire token to use for logging.",
+    )
+
+
+logfire.configure(token=Settings().logfire_token, console=False)
 
 prefect_docs_mcp = FastMCP("Prefect Docs MCP", version="0.1.0")
 

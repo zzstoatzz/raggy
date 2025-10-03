@@ -2555,7 +2555,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastmcp", git = "https://github.com/jlowin/fastmcp.git" },
-    { name = "logfire", specifier = ">=1.0" },
+    { name = "logfire" },
     { name = "pydantic-settings", specifier = ">=2.2.1" },
     { name = "raggy", extras = ["tpuf"], git = "https://github.com/zzstoatzz/raggy.git" },
 ]
