@@ -6,7 +6,8 @@ readme = "README.md"
 authors = [{ name = "Prefect Labs" }]
 requires-python = ">=3.10"
 dependencies = [
-    "fastmcp@git+https://github.com/jlowin/fastmcp.git",
+    "fastmcp@git+https://github.com/jlowin/fastmcp.git@main",
+    "logfire",
     "pydantic-settings>=2.2.1",
     "raggy[tpuf]@git+https://github.com/zzstoatzz/raggy.git",
 ]
