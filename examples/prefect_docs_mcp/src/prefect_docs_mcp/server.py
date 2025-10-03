@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
+import logfire
 from fastmcp import FastMCP
 from openai import OpenAIError
 from pydantic import Field
@@ -14,10 +15,13 @@ from turbopuffer import (
     PermissionDeniedError,
 )
 
-from prefect_docs_mcp._internal.metrics import metrics
 from prefect_docs_mcp._internal.tpuf import normalize_score, row_to_dict, run_query
 from prefect_docs_mcp.settings import settings
 from raggy.vectorstores.tpuf import TurboPuffer
+
+# configure logfire for observability
+# send_to_logfire can be controlled via LOGFIRE_SEND_TO_LOGFIRE env var
+logfire.configure(send_to_logfire="if-token-present")
 
 prefect_docs_mcp = FastMCP("Prefect Docs MCP", version="0.1.0")
 
@@ -60,15 +64,18 @@ def search_prefect(
     if not query.strip():
         raise ValueError("Query must not be empty.")
 
-    metrics.increment("search_calls_total")
-
     result_limit = top_k or settings.top_k
     include_attributes = list(dict.fromkeys(settings.include_attributes))
 
-    with metrics.timer("search_total"):
+    with logfire.span(
+        "search_prefect",
+        query=query,
+        top_k=result_limit,
+        namespace=settings.namespace,
+    ) as span:
         try:
             with TurboPuffer(namespace=settings.namespace) as tpuf:
-                with metrics.timer("search_vector_query"):
+                with logfire.span("vector_query"):
                     response = run_query(
                         tpuf,
                         query=query,
@@ -77,19 +84,24 @@ def search_prefect(
                     )
         except NotFoundError:
             rows: list[Any] = []
+            span.set_attribute("error_type", "not_found")
         except (AuthenticationError, PermissionDeniedError) as exc:
-            metrics.increment("search_calls_error")
+            span.set_attribute("error_type", "authentication")
+            span.record_exception(exc)
             return _build_response(
                 query, [], f"TurboPuffer authentication error: {exc}"
             )
         except APIError as exc:
-            metrics.increment("search_calls_error")
+            span.set_attribute("error_type", "api_error")
+            span.record_exception(exc)
             return _build_response(query, [], f"TurboPuffer API error: {exc}")
         except OpenAIError as exc:
-            metrics.increment("search_calls_error")
+            span.set_attribute("error_type", "openai_error")
+            span.record_exception(exc)
             return _build_response(query, [], f"OpenAI error: {exc}")
-        except ValueError:
-            metrics.increment("search_calls_error")
+        except ValueError as exc:
+            span.set_attribute("error_type", "config_error")
+            span.record_exception(exc)
             return _build_response(
                 query,
                 [],
@@ -99,7 +111,7 @@ def search_prefect(
             rows = list(response.rows or [])
 
         results: list[dict[str, Any]] = []
-        with metrics.timer("search_response_format"):
+        with logfire.span("format_response", result_count=len(rows)):
             for row in rows:
                 data = row_to_dict(row)
                 snippet = data.get("text") or data.get("content")
@@ -132,6 +144,7 @@ def search_prefect(
 
                 results.append(result_payload)
 
-        metrics.increment("search_calls_success")
+        span.set_attribute("result_count", len(results))
+        span.set_attribute("success", True)
 
         return _build_response(query, results)
