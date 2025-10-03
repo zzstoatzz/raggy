@@ -36,7 +36,7 @@ def _build_response(
     return payload
 
 
-@prefect_docs_mcp.tool(name="search_prefect_docs")
+@prefect_docs_mcp.tool
 def search_prefect(
     query: Annotated[
         str,
