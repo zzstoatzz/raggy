@@ -6,7 +6,7 @@ from typing import Annotated, Any
 
 import logfire
 from fastmcp import FastMCP
-from openai import OpenAIError
+from openai import AsyncOpenAI, OpenAIError
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from turbopuffer import (
@@ -37,6 +37,9 @@ logfire.configure(
     token=Settings().logfire_token,
     console=False,
 )
+
+# instrument ALL OpenAI clients to capture token usage automatically
+logfire.instrument_openai(AsyncOpenAI)
 
 prefect_docs_mcp = FastMCP("Prefect Docs MCP", version="0.1.0")
 
@@ -87,6 +90,7 @@ def search_prefect(
         query=query,
         top_k=result_limit,
         namespace=settings.namespace,
+        query_length=len(query),
     ) as span:
         try:
             with TurboPuffer(namespace=settings.namespace) as tpuf:
